@@ -580,19 +580,139 @@ def _layout_chart_plus_text_slide(slide: ir.Slide, brand: BrandProfile, geom: Sl
         _layout_block_stack(text_blocks, cols[1], brand, sm)
 
 
+def _block_content_weight(block: ir._Block) -> int:
+    """Estimate content weight (in characters / text density) of a block."""
+    if isinstance(block, ir.Heading):
+        return sum(len(r.t) for r in getattr(block, "runs", [])) * 2
+    elif isinstance(block, ir.BulletList):
+        return sum(len(r.t) for item in block.items for r in getattr(item, "runs", []))
+    elif isinstance(block, ir.Callout):
+        return len(block.title) * 2 + sum(len(r.t) for r in getattr(block, "runs", []))
+    elif isinstance(block, ir.Table):
+        return sum(len(r.t) for row in block.rows for cell in row for r in getattr(cell, "runs", []))
+    elif isinstance(block, ir.KPIGroup):
+        return sum(len(k.value) * 3 + len(k.label) for k in block.items)
+    elif isinstance(block, ir.CardGrid):
+        return sum(len(c.title) * 2 + sum(len(r.t) for r in getattr(c, "body", [])) for c in block.cards)
+    elif isinstance(block, (ir.Image, ir.Chart)):
+        return 150
+    elif hasattr(block, "runs") and getattr(block, "runs", None):
+        return sum(len(r.t) for r in block.runs)
+    return 50
+
+
+def _render_hero_fallback(blocks: list[ir._Block], cr: Rect, brand: BrandProfile, sm: lm.SlideModel) -> None:
+    """Render collapsed single-column hero container rather than leaving a blank half-screen."""
+    hero_w = min(cr.w, int(cr.w * 0.92))
+    hero_x = cr.x + (cr.w - hero_w) // 2
+    pad = int(0.3 * EMU_PER_INCH)
+
+    use_container = brand.design.dark or brand.design.card_style in ("filled", "shadow", "outline")
+    if use_container:
+        fill = brand.roles.surface if brand.design.dark or brand.design.card_style in ("filled", "shadow") else None
+        line = brand.roles.border if brand.design.dark or brand.design.card_style in ("filled", "outline") else None
+        radius = brand.design.corner_radius if brand.design.corner_radius > 0 else 0.04
+        sm.elements.append(
+            lm.ShapeEl(
+                name="Hero Container",
+                x=hero_x,
+                y=cr.y,
+                w=hero_w,
+                h=cr.h,
+                geom="roundRect" if radius > 0 else "rect",
+                radius=radius,
+                fill=fill,
+                line=line,
+                line_w=brand.design.line_weight_pt or 1.0,
+            )
+        )
+        inner_rect = Rect(x=hero_x + pad, y=cr.y + pad, w=hero_w - 2 * pad, h=cr.h - 2 * pad)
+        _layout_block_stack(blocks, inner_rect, brand, sm)
+    else:
+        hero_rect = Rect(x=hero_x, y=cr.y, w=hero_w, h=cr.h)
+        _layout_block_stack(blocks, hero_rect, brand, sm)
+
+
 def _layout_two_column_slide(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometry, sm: lm.SlideModel) -> None:
+    cr = geom.content_rect
     cols = geom.split_columns(2)
+
+    if len(slide.blocks) <= 1:
+        _render_hero_fallback(list(slide.blocks), cr, brand, sm)
+        return
+
     left_blocks = [b for b in slide.blocks if b.column == 0]
     right_blocks = [b for b in slide.blocks if b.column == 1]
+    unassigned = [b for b in slide.blocks if b.column not in (0, 1)]
 
-    # If column indices were not populated, divide blocks equally
+    # If unassigned blocks exist or explicit columns are missing, distribute by content weight
     if not left_blocks and not right_blocks:
-        mid = math.ceil(len(slide.blocks) / 2)
-        left_blocks = slide.blocks[:mid]
-        right_blocks = slide.blocks[mid:]
+        blocks = list(slide.blocks)
+        weights = [_block_content_weight(b) for b in blocks]
+        total_w = sum(weights)
+        if total_w == 0:
+            best_split = len(blocks) // 2
+        else:
+            best_split = 1
+            min_diff = float("inf")
+            running = 0
+            for i in range(len(blocks) - 1):
+                running += weights[i]
+                rem = total_w - running
+                diff = abs(running - rem)
+                if diff < min_diff:
+                    min_diff = diff
+                    best_split = i + 1
+        left_blocks = blocks[:best_split]
+        right_blocks = blocks[best_split:]
+    elif unassigned:
+        w_left = sum(_block_content_weight(b) for b in left_blocks)
+        w_right = sum(_block_content_weight(b) for b in right_blocks)
+        for b in unassigned:
+            if w_left <= w_right:
+                left_blocks.append(b)
+                w_left += _block_content_weight(b)
+            else:
+                right_blocks.append(b)
+                w_right += _block_content_weight(b)
 
-    _layout_block_stack(left_blocks, cols[0], brand, sm)
-    _layout_block_stack(right_blocks, cols[1], brand, sm)
+    # Content-aware check: check if one column is empty or represents < 15% of total content
+    w_left = sum(_block_content_weight(b) for b in left_blocks)
+    w_right = sum(_block_content_weight(b) for b in right_blocks)
+    total_w = w_left + w_right
+
+    if not left_blocks or not right_blocks or total_w == 0 or (w_left < 0.15 * total_w) or (w_right < 0.15 * total_w):
+        all_blocks = left_blocks + right_blocks
+        _render_hero_fallback(all_blocks, cr, brand, sm)
+        return
+
+    # Two genuine balanced columns: render with clean column separation
+    pad = int(0.25 * EMU_PER_INCH)
+    use_container = brand.design.dark or brand.design.card_style in ("filled", "shadow", "outline")
+
+    for col_idx, (col_rect, blocks) in enumerate(zip(cols, [left_blocks, right_blocks])):
+        if use_container:
+            fill = brand.roles.surface if brand.design.dark or brand.design.card_style in ("filled", "shadow") else None
+            line = brand.roles.border if brand.design.dark or brand.design.card_style in ("filled", "outline") else None
+            radius = brand.design.corner_radius if brand.design.corner_radius > 0 else 0.04
+            sm.elements.append(
+                lm.ShapeEl(
+                    name=f"Column Container {col_idx + 1}",
+                    x=col_rect.x,
+                    y=col_rect.y,
+                    w=col_rect.w,
+                    h=col_rect.h,
+                    geom="roundRect" if radius > 0 else "rect",
+                    radius=radius,
+                    fill=fill,
+                    line=line,
+                    line_w=brand.design.line_weight_pt or 1.0,
+                )
+            )
+            inner_rect = Rect(x=col_rect.x + pad, y=col_rect.y + pad, w=col_rect.w - 2 * pad, h=col_rect.h - 2 * pad)
+            _layout_block_stack(blocks, inner_rect, brand, sm)
+        else:
+            _layout_block_stack(blocks, col_rect, brand, sm)
 
 
 def _layout_table_slide(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometry, sm: lm.SlideModel) -> None:

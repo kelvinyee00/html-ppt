@@ -165,3 +165,75 @@ def test_kpigroup_with_secondary_content_stacked():
     assert c0.y == cr.y
     assert c0.h <= int(cr.h * 0.35)
 
+
+def test_two_column_empty_column_fallback_to_hero():
+    brand = palette_brand("ocean")
+    brand = apply_preset(brand, "corporate")
+    geom = SlideGeometry.from_brand(brand, has_title=True)
+    cr = geom.content_rect
+
+    # Explicit column 0 has blocks, column 1 is empty
+    p1 = ir.Paragraph(runs=[ir.Run(t="This is content strictly assigned to column 0.")], column=0)
+    p2 = ir.Paragraph(runs=[ir.Run(t="Another paragraph also in column 0.")], column=0)
+    slide = ir.Slide(index=1, title="Single Sided Slide", blocks=[p1, p2])
+    sm = lm.SlideModel(id=slide.id, archetype="two_column")
+
+    from htmlppt.layout.engine import _layout_two_column_slide
+    _layout_two_column_slide(slide, brand, geom, sm)
+
+    # Must collapse to Hero Container rather than two column containers
+    col_containers = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name.startswith("Column Container")]
+    assert len(col_containers) == 0, "Should not render two column containers when one column is empty"
+
+    hero_containers = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name == "Hero Container"]
+    assert len(hero_containers) == 1, "Should render a single centered Hero Container"
+    assert hero_containers[0].w >= int(cr.w * 0.90)
+
+
+def test_two_column_sparse_column_fallback_to_hero():
+    brand = palette_brand("ocean")
+    brand = apply_preset(brand, "corporate")
+    geom = SlideGeometry.from_brand(brand, has_title=True)
+
+    # Column 0 has a tiny 10-char line; Column 1 has 300+ chars (< 10% ratio)
+    p_sparse = ir.Paragraph(runs=[ir.Run(t="Tiny note.")], column=0)
+    p_heavy = ir.Paragraph(runs=[ir.Run(t="Extensive architectural documentation explaining in deep detail the full system flow, hardware constraints, communication protocols, memory allocation, and error recovery strategies across all vehicle sub-systems.")], column=1)
+    slide = ir.Slide(index=1, title="Sparse Column Slide", blocks=[p_sparse, p_heavy])
+    sm = lm.SlideModel(id=slide.id, archetype="two_column")
+
+    from htmlppt.layout.engine import _layout_two_column_slide
+    _layout_two_column_slide(slide, brand, geom, sm)
+
+    col_containers = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name.startswith("Column Container")]
+    assert len(col_containers) == 0, "Should collapse sparse column (<15% content) to hero layout"
+
+    hero_containers = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name == "Hero Container"]
+    assert len(hero_containers) == 1
+
+
+def test_two_column_balanced_distribution():
+    brand = palette_brand("ocean")
+    brand = apply_preset(brand, "corporate")
+    geom = SlideGeometry.from_brand(brand, has_title=True)
+    cr = geom.content_rect
+    gutter = brand.design.gutter
+
+    # 4 balanced paragraphs without explicit columns
+    paras = [
+        ir.Paragraph(runs=[ir.Run(t=f"Balanced paragraph {i}: detailed topic covering system component {i} in depth.")])
+        for i in range(4)
+    ]
+    slide = ir.Slide(index=1, title="Balanced Two Column", blocks=paras)
+    sm = lm.SlideModel(id=slide.id, archetype="two_column")
+
+    from htmlppt.layout.engine import _layout_two_column_slide
+    _layout_two_column_slide(slide, brand, geom, sm)
+
+    col_containers = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name.startswith("Column Container")]
+    assert len(col_containers) == 2, "Should render 2 column containers for genuine balanced columns"
+    c1, c2 = col_containers
+    assert c1.x == cr.x
+    assert c2.x == cr.x + c1.w + gutter
+    assert c1.w == c2.w
+
+
