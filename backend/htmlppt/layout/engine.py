@@ -425,12 +425,18 @@ def _layout_kpi_slide(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometry,
         return
 
     n_kpis = len(kpi_block.items)
-    # Determine height budget for KPI tiles
-    kpi_height = int(cr.h * (0.45 if other_blocks else 0.75))
-    kpi_y = cr.y
+    gutter = brand.design.gutter
+
+    # Bounded compact height budget: 25% - 35% of slide content height (~1.5 to 2.2 inches)
+    kpi_height = int(cr.h * (0.28 if other_blocks else 0.32))
+
+    # If no other blocks exist on the slide, vertically center the KPI card row within content rect
+    if not other_blocks:
+        kpi_y = cr.y + (cr.h - kpi_height) // 2
+    else:
+        kpi_y = cr.y
 
     # Calculate tile positions horizontally
-    gutter = brand.design.gutter
     total_gutters = gutter * (n_kpis - 1)
     tile_w = (cr.w - total_gutters) // n_kpis
 
@@ -455,11 +461,12 @@ def _build_kpi_card(
     brand: BrandProfile,
     sm: lm.SlideModel,
 ) -> None:
-    # Background card shape
+    # Outer card shape with elevation and subtle rounded corners
     card_style = brand.design.card_style
-    fill = brand.roles.surface if card_style in ("filled", "shadow") else None
-    line = brand.roles.border if card_style in ("outline", "filled") else None
+    fill = brand.roles.surface if card_style in ("filled", "shadow") or brand.design.dark else None
+    line = brand.roles.border if card_style in ("outline", "filled") or brand.design.dark else None
     line_w = brand.design.line_weight_pt if line else 0.0
+    radius = brand.design.corner_radius if brand.design.corner_radius > 0 else 0.04
 
     sm.elements.append(
         lm.ShapeEl(
@@ -468,8 +475,8 @@ def _build_kpi_card(
             y=y,
             w=w,
             h=h,
-            geom="roundRect" if brand.design.corner_radius > 0 else "rect",
-            radius=brand.design.corner_radius,
+            geom="roundRect" if radius > 0 else "rect",
+            radius=radius,
             fill=fill,
             line=line,
             line_w=line_w,
@@ -477,12 +484,16 @@ def _build_kpi_card(
         )
     )
 
-    # Inner text elements
-    padding = int(0.2 * EMU_PER_INCH)
+    padding = int(0.25 * EMU_PER_INCH)
     tx = x + padding
     ty = y + padding
     tw = w - 2 * padding
     th = h - 2 * padding
+
+    # Metric number prominently displayed (36-48pt) in roles.primary
+    metric_size = max(36.0, min(48.0, brand.fonts.sizes.kpi))
+    # Clear descriptive label (13-15pt) in roles.muted
+    label_size = max(13.0, min(15.0, brand.fonts.sizes.body))
 
     paras: list[lm.Para] = [
         # Big Value
@@ -491,7 +502,7 @@ def _build_kpi_card(
                 lm.TRun(
                     text=kpi.value,
                     font=brand.fonts.heading.family,
-                    size=brand.fonts.sizes.kpi,
+                    size=metric_size,
                     color=brand.roles.primary,
                     bold=True,
                 )
@@ -504,11 +515,11 @@ def _build_kpi_card(
                 lm.TRun(
                     text=kpi.label,
                     font=brand.fonts.body.family,
-                    size=brand.fonts.sizes.body,
+                    size=label_size,
                     color=brand.roles.muted,
                 )
             ],
-            space_after=6,
+            space_after=4,
         ),
     ]
 

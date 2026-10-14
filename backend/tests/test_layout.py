@@ -98,3 +98,70 @@ def test_cardgrid_timeline_process_accent_bar():
     assert len(accent_bars) == 3
     for bar in accent_bars:
         assert bar.fill == brand.roles.primary
+
+
+def test_kpigroup_standalone_compact_and_centered():
+    brand = palette_brand("ocean")
+    brand = apply_preset(brand, "corporate")
+    geom = SlideGeometry.from_brand(brand, has_title=True)
+    cr = geom.content_rect
+
+    kpis = [
+        ir.KPI(value="$24.5M", label="Annual Recurring Revenue", delta="+34%", sentiment="positive"),
+        ir.KPI(value="99.98%", label="Platform Uptime SLA", delta="+0.05%", sentiment="positive"),
+        ir.KPI(value="142ms", label="P99 Response Latency", delta="-12ms", sentiment="positive"),
+    ]
+    slide = ir.Slide(index=1, title="Q3 Performance Metrics", blocks=[ir.KPIGroup(items=kpis)])
+    sm = lm.SlideModel(id=slide.id, archetype="kpi_grid")
+
+    from htmlppt.layout.engine import _layout_kpi_slide
+    _layout_kpi_slide(slide, brand, geom, sm)
+
+    cards = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name.startswith("KPI Card")]
+    assert len(cards) == 3
+
+    c0 = cards[0]
+    # Height must be capped to compact budget (25% - 35% of cr.h)
+    assert c0.h <= int(cr.h * 0.35), f"KPI height {c0.h} exceeded 35% of content height {cr.h}"
+    assert c0.h >= int(cr.h * 0.20), f"KPI height {c0.h} is too small"
+
+    # Vertically centered when standalone
+    top_space = c0.y - cr.y
+    bottom_space = (cr.y + cr.h) - (c0.y + c0.h)
+    assert abs(top_space - bottom_space) <= 1, f"KPI card not vertically centered: top={top_space}, bottom={bottom_space}"
+
+    # Verify prominent typography in text elements
+    texts = [el for el in sm.elements if isinstance(el, lm.TextEl) and el.name.startswith("KPI Text")]
+    assert len(texts) == 3
+    t0 = texts[0]
+    val_run = t0.paras[0].runs[0]
+    label_run = t0.paras[1].runs[0]
+    assert 36 <= val_run.size <= 48, f"KPI metric number size {val_run.size} not in 36-48pt range"
+    assert 13 <= label_run.size <= 15, f"KPI label size {label_run.size} not in 13-15pt range"
+
+
+def test_kpigroup_with_secondary_content_stacked():
+    brand = palette_brand("ocean")
+    brand = apply_preset(brand, "corporate")
+    geom = SlideGeometry.from_brand(brand, has_title=True)
+    cr = geom.content_rect
+    gutter = brand.design.gutter
+
+    kpis = [
+        ir.KPI(value="4.8/5", label="Customer Satisfaction"),
+        ir.KPI(value="92%", label="Feature Retention"),
+    ]
+    sec_para = ir.Paragraph(runs=[ir.Run(t="Key takeaway: Customer satisfaction reached an all-time high in Q3.")])
+    slide = ir.Slide(index=1, title="Customer Highlights", blocks=[ir.KPIGroup(items=kpis), sec_para])
+    sm = lm.SlideModel(id=slide.id, archetype="kpi_grid")
+
+    from htmlppt.layout.engine import _layout_kpi_slide
+    _layout_kpi_slide(slide, brand, geom, sm)
+
+    cards = [el for el in sm.elements if isinstance(el, lm.ShapeEl) and el.name.startswith("KPI Card")]
+    assert len(cards) == 2
+    c0 = cards[0]
+    # Starts at top of content area when secondary content is present
+    assert c0.y == cr.y
+    assert c0.h <= int(cr.h * 0.35)
+
