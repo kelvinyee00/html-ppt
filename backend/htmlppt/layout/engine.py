@@ -603,12 +603,65 @@ def _layout_cards_slide(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometr
 
     n_cards = len(cg.cards)
     gutter = brand.design.gutter
-    tile_w = (cr.w - gutter * (n_cards - 1)) // n_cards
-    tile_h = cr.h
 
-    for i, card in enumerate(cg.cards):
-        cx = cr.x + i * (tile_w + gutter)
-        _build_card_element(card, cx, cr.y, tile_w, tile_h, cg.variant, brand, sm)
+    if n_cards == 4:
+        # 2x2 grid
+        tile_w = (cr.w - gutter) // 2
+        tile_h = (cr.h - gutter) // 2
+        for i, card in enumerate(cg.cards):
+            r = i // 2
+            c = i % 2
+            cx = cr.x + c * (tile_w + gutter)
+            cy = cr.y + r * (tile_h + gutter)
+            _build_card_element(card, cx, cy, tile_w, tile_h, cg.variant, brand, sm)
+    elif n_cards in (5, 6):
+        # 2x3 grid
+        tile_w = (cr.w - gutter * 2) // 3
+        tile_h = (cr.h - gutter) // 2
+        for i, card in enumerate(cg.cards):
+            r = i // 3
+            c = i % 3
+            cx = cr.x + c * (tile_w + gutter)
+            cy = cr.y + r * (tile_h + gutter)
+            _build_card_element(card, cx, cy, tile_w, tile_h, cg.variant, brand, sm)
+    elif n_cards <= 3:
+        # Single row with content-bounded height and balanced vertical centering
+        tile_w = (cr.w - gutter * (n_cards - 1)) // n_cards
+        pad = int(0.25 * EMU_PER_INCH)
+        estimated_max_h = 0
+        for c in cg.cards:
+            h_est = 2 * pad
+            if c.kicker:
+                h_est += int(0.35 * EMU_PER_INCH)
+            if c.title:
+                h_est += int(0.45 * EMU_PER_INCH)
+            if c.body:
+                h_est += int(0.3 * EMU_PER_INCH) * max(1, len(c.body))
+            if c.bullets:
+                h_est += int(0.35 * EMU_PER_INCH) * len(c.bullets)
+            if cg.variant in ("process", "timeline"):
+                h_est += int(4 * EMU_PER_PT)
+            estimated_max_h = max(estimated_max_h, h_est)
+
+        content_budget = int(estimated_max_h * 1.25)
+        tile_h = min(cr.h, max(int(cr.h * 0.45), min(int(cr.h * 0.85), content_budget)))
+        cy = cr.y + (cr.h - tile_h) // 2
+
+        for i, card in enumerate(cg.cards):
+            cx = cr.x + i * (tile_w + gutter)
+            _build_card_element(card, cx, cy, tile_w, tile_h, cg.variant, brand, sm)
+    else:
+        # 7+ cards wrap across 3 columns
+        cols = 3
+        rows = (n_cards + cols - 1) // cols
+        tile_w = (cr.w - gutter * (cols - 1)) // cols
+        tile_h = (cr.h - gutter * (rows - 1)) // rows
+        for i, card in enumerate(cg.cards):
+            r = i // cols
+            c = i % cols
+            cx = cr.x + c * (tile_w + gutter)
+            cy = cr.y + r * (tile_h + gutter)
+            _build_card_element(card, cx, cy, tile_w, tile_h, cg.variant, brand, sm)
 
 
 def _build_card_element(
@@ -621,10 +674,11 @@ def _build_card_element(
     brand: BrandProfile,
     sm: lm.SlideModel,
 ) -> None:
-    # Outer card shape
+    # Outer card shape with elevation and subtle rounded corners
     card_style = brand.design.card_style
-    fill = brand.roles.surface if card_style in ("filled", "shadow") else None
-    line = brand.roles.border if card_style in ("outline", "filled") else None
+    fill = brand.roles.surface if card_style in ("filled", "shadow") or brand.design.dark else None
+    line = brand.roles.border if card_style in ("outline", "filled") or brand.design.dark else None
+    radius = brand.design.corner_radius if brand.design.corner_radius > 0 else 0.04
 
     sm.elements.append(
         lm.ShapeEl(
@@ -633,23 +687,24 @@ def _build_card_element(
             y=y,
             w=w,
             h=h,
-            geom="roundRect" if brand.design.corner_radius > 0 else "rect",
-            radius=brand.design.corner_radius,
+            geom="roundRect" if radius > 0 else "rect",
+            radius=radius,
             fill=fill,
             line=line,
             line_w=brand.design.line_weight_pt if line else 0.0,
         )
     )
 
+    top_accent_h = int(4 * EMU_PER_PT) if variant in ("process", "timeline") else 0
     # Accent top border if timeline or process
-    if variant in ("process", "timeline"):
+    if top_accent_h > 0:
         sm.elements.append(
             lm.ShapeEl(
                 name="Card Top Accent",
                 x=x,
                 y=y,
                 w=w,
-                h=int(4 * EMU_PER_PT),
+                h=top_accent_h,
                 geom="rect",
                 fill=brand.roles.primary,
                 line=None,
@@ -713,9 +768,9 @@ def _build_card_element(
         lm.TextEl(
             name=f"Card Content {card.title}",
             x=x + pad,
-            y=y + pad + (int(4 * EMU_PER_PT) if variant in ("process", "timeline") else 0),
+            y=y + pad + top_accent_h,
             w=w - 2 * pad,
-            h=h - 2 * pad,
+            h=h - 2 * pad - top_accent_h,
             paras=paras,
             valign="top",
         )
