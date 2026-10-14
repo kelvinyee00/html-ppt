@@ -108,6 +108,26 @@ def _add_slide_header(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometry,
     tr = geom.title_rect
     paras: list[lm.Para] = []
 
+    # Kicker run
+    kicker_val = getattr(slide, "kicker", "") or ""
+    if kicker_val:
+        raw_kicker = kicker_val.lstrip("• ").strip().upper()
+        paras.append(
+            lm.Para(
+                runs=[
+                    lm.TRun(
+                        text=f"• {raw_kicker}",
+                        font=brand.fonts.body.family,
+                        size=max(10.0, brand.fonts.sizes.caption * 1.15),
+                        color=brand.roles.primary,
+                        bold=True,
+                    )
+                ],
+                align="center" if brand.design.title_align == "center" else "left",
+                space_after=4,
+            )
+        )
+
     # Title run
     title_size = brand.fonts.sizes.title
     title_text = slide.title.upper() if brand.design.title_case == "upper" else slide.title
@@ -153,7 +173,7 @@ def _add_slide_header(slide: ir.Slide, brand: BrandProfile, geom: SlideGeometry,
             h=tr.h,
             paras=paras,
             placeholder="title",
-            valign="middle" if not slide.subtitle else "top",
+            valign="middle" if not (slide.subtitle or kicker_val) else "top",
         )
     )
 
@@ -846,11 +866,12 @@ def _build_card_element(
     paras: list[lm.Para] = []
 
     if card.kicker:
+        raw_kicker = card.kicker.lstrip("• ").strip().upper()
         paras.append(
             lm.Para(
                 runs=[
                     lm.TRun(
-                        text=card.kicker,
+                        text=f"• {raw_kicker}",
                         font=brand.fonts.body.family,
                         size=brand.fonts.sizes.caption * 1.1,
                         color=brand.roles.primary,
@@ -1203,7 +1224,7 @@ def _build_table_element(
                     text=r.t,
                     font=brand.fonts.heading.family if is_head else brand.fonts.body.family,
                     size=brand.fonts.sizes.body if not is_head else brand.fonts.sizes.body * 1.05,
-                    color=brand.roles.on_primary if (is_head and brand.design.table_style == "banded") else brand.roles.text,
+                    color=brand.roles.text,
                     bold=is_head or is_total or cell.bold,
                 )
                 for r in cell.runs
@@ -1212,11 +1233,14 @@ def _build_table_element(
             # Background fill
             fill = None
             if is_head:
-                fill = brand.roles.primary if brand.design.table_style == "banded" else brand.roles.surface
-            elif brand.design.table_style == "banded" and ri % 2 == 1:
+                fill = brand.roles.surface
+            elif ri % 2 == 1:
                 fill = brand.roles.surface
             elif is_total:
                 fill = brand.roles.surface
+
+            border_bottom = brand.roles.border if (is_head or brand.design.table_style != "minimal") else None
+            border_bottom_w = 1.5 if is_head else 0.75
 
             row_cells.append(
                 lm.CellEl(
@@ -1224,8 +1248,9 @@ def _build_table_element(
                     fill=fill,
                     colspan=cell.colspan,
                     rowspan=cell.rowspan,
-                    border_bottom=brand.roles.border if brand.design.table_style != "minimal" else None,
-                    border_bottom_w=1.0,
+                    border_bottom=border_bottom,
+                    border_bottom_w=border_bottom_w,
+                    is_header=is_head,
                 )
             )
         table_cells.append(row_cells)

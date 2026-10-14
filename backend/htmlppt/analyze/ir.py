@@ -206,6 +206,7 @@ class Slide(BaseModel):
     kind: SlideKind = "content"
     title: str = ""
     subtitle: str = ""
+    kicker: str = ""
     blocks: list[Block] = Field(default_factory=list)
     notes: str = ""
     layout: str | None = None         # user/LLM override of the layout archetype

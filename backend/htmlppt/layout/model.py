@@ -85,6 +85,7 @@ class CellEl(BaseModel):
     border_top: str | None = None
     border_top_w: float = 0
     valign: Literal["top", "middle", "bottom"] = "middle"
+    is_header: bool = False
 
 
 class TableEl(_El):
