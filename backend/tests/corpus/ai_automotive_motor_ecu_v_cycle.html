@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI in Automotive Motor ECU Development | V-Cycle Acceleration &amp; Sovereign Security</title>
+<style>
+  :root {
+    --bg-dark: #070b14;
+    --card-bg: #101726;
+    --card-border: #1e293d;
+    --accent-blue: #3b82f6;
+    --accent-cyan: #06b6d4;
+    --accent-teal: #10b981;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, -apple-system, sans-serif;
+    color: var(--text-primary);
+    overflow-x: hidden;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Presentation Top Toolbar */
+  .deck-header {
+    background: rgba(11, 16, 32, 0.95);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 28px;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+  }
+  .deck-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand-badge {
+    background: linear-gradient(135deg, #06b6d4, #2563eb);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .deck-title-text {
+    font-size: 14px;
+    font-weight: 600;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .deck-nav-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .nav-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #f1f5f9;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .nav-btn:hover {
+    background: #334155;
+    border-color: #60a5fa;
+    color: #fff;
+  }
+  .nav-btn.primary {
+    background: #2563eb;
+    border-color: #3b82f6;
+  }
+  .nav-btn.primary:hover {
+    background: #1d4ed8;
+  }
+  .slide-counter {
+    font-size: 13px;
+    color: #94a3b8;
+    font-weight: 600;
+    min-width: 90px;
+    text-align: center;
+  }
+  .slide-pills {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .slide-pill {
+    width: 26px;
+    height: 8px;
+    background: #334155;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+  }
+  .slide-pill:hover {
+    background: #475569;
+  }
+  .slide-pill.active {
+    background: #06b6d4;
+    width: 44px;
+    box-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+  }
+
+  /* Presentation Mode Styling */
+  body.mode-presentation {
+    overflow: hidden;
+  }
+  body.mode-presentation .deck-container {
+    padding: 0;
+    height: calc(100vh - 54px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  body.mode-presentation .slide {
+    display: none;
+    margin: 0;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
+    transform-origin: center center;
+    animation: fadeInSlide 0.35s ease-out forwards;
+  }
+  body.mode-presentation .slide.active-slide {
+    display: flex;
+  }
+
+  @keyframes fadeInSlide {
+    from { opacity: 0; transform: scale(0.985); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Scroll Mode Styling */
+  body.mode-scroll .deck-container {
+    padding: 32px 0 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+  }
+  body.mode-scroll .slide {
+    display: flex;
+  }
+
+  /* Standard Slide Canvas (1280x720 16:9 ratio) */
+  .slide {
+    width: 1280px;
+    height: 720px;
+    padding: 44px 54px;
+    background: radial-gradient(circle at top right, #1a2436 0%, #0d1527 55%, #070c18 100%);
+    border: 1px solid #1e293b;
+    border-radius: 16px;
+    position: relative;
+    overflow: hidden;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* Ambient Glow Effect */
+  .slide::before {
+    content: "";
+    position: absolute;
+    top: -140px;
+    right: -140px;
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(circle, rgba(6, 182, 212, 0.14), transparent 70%);
+    pointer-events: none;
+  }
+  .slide::after {
+    content: "";
+    position: absolute;
+    bottom: -100px;
+    left: -100px;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(37, 99, 235, 0.08), transparent 70%);
+    pointer-events: none;
+  }
+
+  /* Slide Header */
+  .slide-top {
+    position: relative;
+    z-index: 2;
+  }
+  .kicker {
+    font-size: 13px;
+    font-weight: 700;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .kicker .dot {
+    width: 8px;
+    height: 8px;
+    background: #06b6d4;
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 10px #06b6d4;
+  }
+  h1 {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #ffffff;
+    letter-spacing: -0.5px;
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-size: 32px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #ffffff;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 16.5px;
+    color: #94a3b8;
+    font-weight: 400;
+    line-height: 1.45;
+    max-width: 1100px;
+  }
+
+  /* Slide Footer */
+  .slide-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 12px;
+    font-size: 12px;
+    color: #64748b;
+    position: relative;
+    z-index: 2;
+  }
+  .slide-footer .confidential {
+    color: #f59e0b;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  /* Layout Grids */
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+    position: relative;
+    z-index: 2;
+  }
+  .cols-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    position: relative;
+    z-index: 2;
+  }
+  .cols-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    position: relative;
+    z-index: 2;
+  }
+
+  /* KPI Grid */
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin: 18px 0 14px;
+    position: relative;
+    z-index: 2;
+  }
+  .kpi {
+    background: rgba(16, 23, 38, 0.85);
+    border: 1px solid #1f293d;
+    border-radius: 12px;
+    padding: 18px;
+    position: relative;
+    overflow: hidden;
+  }
+  .kpi::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #06b6d4, #3b82f6);
+  }
+  .kpi .value {
+    font-size: 38px;
+    font-weight: 800;
+    color: #38bdf8;
+    line-height: 1;
+    margin-bottom: 6px;
+    letter-spacing: -1px;
+  }
+  .kpi .label {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 3px;
+  }
+  .kpi .delta {
+    font-size: 11.5px;
+    color: #94a3b8;
+    line-height: 1.35;
+  }
+  .kpi .delta.highlight {
+    color: #10b981;
+    font-weight: 700;
+  }
+
+  /* Cards */
+  .card {
+    background: rgba(16, 23, 38, 0.75);
+    border: 1px solid #1f293d;
+    border-radius: 12px;
+    padding: 18px 22px;
+    position: relative;
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .card-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: rgba(6, 182, 212, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(6, 182, 212, 0.3);
+  }
+  .card h3 {
+    font-size: 16.5px;
+    color: #fff;
+    font-weight: 700;
+  }
+  .card p {
+    font-size: 13px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .card ul {
+    list-style: none;
+    margin-top: 8px;
+  }
+  .card ul li {
+    font-size: 12.5px;
+    color: #cbd5e1;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .card ul li::before {
+    content: "▸";
+    color: #38bdf8;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  /* Interactive V-Cycle Diagram */
+  .v-cycle-container {
+    display: grid;
+    grid-template-columns: 1fr 120px 1fr;
+    gap: 14px;
+    margin-top: 10px;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+  }
+  .v-branch {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .v-step {
+    background: rgba(16, 23, 38, 0.9);
+    border: 1px solid #1f293d;
+    border-radius: 8px;
+    padding: 9px 13px;
+    border-left: 3px solid #3b82f6;
+    transition: all 0.2s ease;
+  }
+  .v-step:hover {
+    border-color: #38bdf8;
+    background: rgba(26, 38, 62, 0.95);
+  }
+  .v-step.right-branch {
+    border-left: none;
+    border-right: 3px solid #10b981;
+  }
+  .v-step.right-branch:hover {
+    border-right-color: #34d399;
+  }
+  .v-step-title {
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #f8fafc;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .v-step-badge {
+    font-size: 9.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    font-weight: 600;
+  }
+  .v-step.right-branch .v-step-badge {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+  }
+  .v-step-desc {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 3px;
+    line-height: 1.35;
+  }
+  .v-center-spine {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .v-badge-center {
+    background: #111d33;
+    border: 1px dashed #38bdf8;
+    border-radius: 10px;
+    padding: 10px 8px;
+    font-size: 11px;
+    color: #38bdf8;
+    font-weight: 700;
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.2);
+  }
+
+  /* Matrix Table */
+  table.matrix-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-top: 12px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid #1f293d;
+    font-size: 12.5px;
+    position: relative;
+    z-index: 2;
+  }
+  table.matrix-table th {
+    background: #111e38;
+    color: #f8fafc;
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 700;
+    border-bottom: 1px solid #1f293d;
+  }
+  table.matrix-table td {
+    background: rgba(16, 23, 38, 0.7);
+    color: #cbd5e1;
+    padding: 9px 14px;
+    border-bottom: 1px solid #1f293d;
+    vertical-align: top;
+    line-height: 1.4;
+  }
+  table.matrix-table tr:last-child td {
+    border-bottom: none;
+  }
+  .tag-bad {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  .tag-good {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 700;
+    margin-right: 4px;
+  }
+
+  /* Security Pillars */
+  .security-box {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.08), rgba(6, 182, 212, 0.04));
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 12px;
+    padding: 16px 20px;
+    position: relative;
+  }
+  .security-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* Steps Grid */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-top: 12px;
+    position: relative;
+    z-index: 2;
+  }
+  .step {
+    background: #101726;
+    border: 1px solid #1f293d;
+    border-radius: 10px;
+    padding: 16px;
+    border-top: 3px solid #38bdf8;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .step .num {
+    font-size: 11px;
+    font-weight: 800;
+    color: #38bdf8;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .step h3 {
+    font-size: 15px;
+    color: #fff;
+    margin: 5px 0 6px;
+    font-weight: 700;
+  }
+  .step p {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+  .step-deliverable {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #1e293b;
+    font-size: 11px;
+    color: #34d399;
+    font-weight: 600;
+  }
+
+  /* Call To Action Banner */
+  .cta-banner {
+    background: linear-gradient(90deg, #1e3a8a 0%, #0d9488 100%);
+    border-radius: 12px;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+    position: relative;
+    z-index: 2;
+  }
+  .cta-title {
+    font-size: 16.5px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .cta-subtitle {
+    font-size: 12.5px;
+    color: #e0f2fe;
+    margin-top: 2px;
+  }
+  .cta-btn {
+    background: #ffffff;
+    color: #0f172a;
+    font-weight: 700;
+    padding: 9px 20px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: transform 0.15s ease;
+  }
+  .cta-btn:hover {
+    transform: translateY(-1px);
+    background: #f8fafc;
+  }
+
+  /* Print and PDF Export Styles */
+  @media print {
+    body { background: #070b14 !important; }
+    .deck-header { display: none !important; }
+    .deck-container { padding: 0 !important; gap: 0 !important; }
+    .slide {
+      page-break-after: always;
+      break-after: page;
+      margin: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      width: 100% !important;
+      height: 100vh !important;
+    }
+  }
+</style>
+</head>
+<body class="mode-presentation">
+
+<!-- Presentation Header & Controls -->
+<header class="deck-header">
+  <div class="deck-brand">
+    <span class="brand-badge">POWERTRAIN AI</span>
+    <div class="deck-title-text">
+      <span>Motor ECU V-Cycle Acceleration Platform</span>
+      <span style="color:#475569">|</span>
+      <span style="color:#94a3b8; font-size:12px;">Automotive Tier-1 &amp; OEM Strategic Briefing</span>
+    </div>
+  </div>
+  
+  <div class="deck-nav-controls">
+    <button class="nav-btn" onclick="prevSlide()" title="Previous Slide (Arrow Left)">◀ Prev</button>
+    
+    <div class="slide-pills">
+      <div class="slide-pill active" onclick="goToSlide(0)" title="Slide 1: Executive Vision"></div>
+      <div class="slide-pill" onclick="goToSlide(1)" title="Slide 2: Demystifying AI"></div>
+      <div class="slide-pill" onclick="goToSlide(2)" title="Slide 3: V-Cycle Transformation"></div>
+      <div class="slide-pill" onclick="goToSlide(3)" title="Slide 4: Zero Data Leakage"></div>
+      <div class="slide-pill" onclick="goToSlide(4)" title="Slide 5: Turnkey Services"></div>
+    </div>
+
+    <span class="slide-counter" id="slideIndicator">Slide 1 of 5</span>
+    <button class="nav-btn" onclick="nextSlide()" title="Next Slide (Arrow Right / Space)">Next ▶</button>
+    
+    <button class="nav-btn" id="viewModeBtn" onclick="toggleViewMode()" title="Toggle View Mode (Presentation vs Scroll)">
+      📄 Scroll View
+    </button>
+    
+    <button class="nav-btn primary" onclick="downloadPptx()" title="Download Editable PowerPoint File">
+      📥 Download .PPTX
+    </button>
+  </div>
+</header>
+
+<!-- Slides Container -->
+<main class="deck-container">
+
+  <!-- ==================== SLIDE 1 ==================== -->
+  <section class="slide active-slide" data-hp-slide="1" id="slide-1">
+    <div class="slide-top">
+      <div class="kicker"><span class="dot"></span> Executive Vision · Automotive E-Drive Software</div>
+      <h1>Accelerating Motor ECU Engineering<br>with Secure, Sovereign AI</h1>
+      <p class="subtitle">
+        Eliminating redundant manual engineering across the ASPICE V-Cycle for PMSM &amp; Inverter control software—cutting time-to-market by 50% without compromising ASIL-D safety or exposing proprietary motor IP.
+      </p>
+    </div>
+
+    <!-- Core Impact Metrics -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="value">65%</div>
+        <div class="label">Test Authoring Automation</div>
+        <div class="delta highlight">▲ 3.5x SIL/HIL Coverage</div>
+        <div class="delta">Automates CAPL, Python, and fault-injection scripts</div>
+      </div>
+      <div class="kpi">
+        <div class="value">50%</div>
+        <div class="label">Dyno Calibration Reduction</div>
+        <div class="delta highlight">▲ €450k+ Saved / Program</div>
+        <div class="delta">Active-learning Bayesian MTPA/MTPV curve synthesis</div>
+      </div>
+      <div class="kpi">
+        <div class="value">100%</div>
+        <div class="label">Zero Data Exposure</div>
+        <div class="delta highlight">🔒 100% On-Prem / Air-Gapped</div>
+        <div class="delta">No cloud egress; proprietary plant models stay sovereign</div>
+      </div>
+      <div class="kpi">
+        <div class="value">8 wks</div>
+        <div class="label">Cycle-Time Compression</div>
+        <div class="delta highlight">▼ From 18 to 10 Months</div>
+        <div class="delta">Automated SWE.1-SWE.6 bidirectional traceability</div>
+      </div>
+    </div>
+
+    <!-- Context & Pain Point Overview -->
+    <div class="cols">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">⚡</div>
+          <h3>The E-Mobility Motor ECU Bottleneck</h3>
+        </div>
+        <p>
+          Next-generation 800V SiC inverters, multi-phase PMSM, and dual-motor torque vectoring demand immense control complexity (FOC, SVPWM, thermal derating, resolver decoding). Engineering teams spend <strong>up to 60% of their billable engineering hours on repetitive manual overhead</strong>: writing traceability matrices, fixing MISRA violations, writing boilerplate test scripts, and running brute-force dyno sweeps.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🛡️</div>
+          <h3>The Solution: Automotive-Grade Engineering AI</h3>
+        </div>
+        <p>
+          Our specialized automotive AI engine embeds directly into your existing enterprise toolchains (DOORS, Simulink, TargetLink, Vector CANoe, dSPACE, ETAS INCA). It acts as an autonomous co-pilot for motor control engineers, handling redundant tasks deterministically while your proprietary IP remains <strong>100% protected within your air-gapped firewall</strong>.
+        </p>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span>Proprietary &amp; Confidential · E-Mobility Powertrain AI Solution</span>
+      <span class="confidential">EXECUTIVE BRIEFING · SLIDE 1 OF 5</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 2 ==================== -->
+  <section class="slide" data-hp-slide="1" id="slide-2">
+    <div class="slide-top">
+      <div class="kicker"><span class="dot"></span> Engineering Foundations · Beyond Generic LLMs</div>
+      <h2>What is AI in Deep Automotive Motor ECU Development?</h2>
+      <p class="subtitle">
+        Generic commercial AI hallucinates and leaks data. Automotive-grade engineering AI is a deterministic, neuro-symbolic framework engineered specifically for functional safety (ISO 26262) and real-time control physics.
+      </p>
+    </div>
+
+    <!-- The 3 Pillars of Motor Control AI -->
+    <div class="cols-3">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📐</div>
+          <h3>1. Physics-Informed ML Surrogates</h3>
+        </div>
+        <p>
+          Replaces sluggish finite-element (FEA) and complex ODE solvers with microsecond neural surrogates for non-linear motor plant dynamics:
+        </p>
+        <ul>
+          <li>Iron saturation, cross-coupling Ld/Lq mapping</li>
+          <li>Inverter SiC switching losses &amp; thermal transients</li>
+          <li>100x faster SIL/MIL closed-loop simulation</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🧠</div>
+          <h3>2. Domain-Tuned Semantic Agents</h3>
+        </div>
+        <p>
+          Trained on automotive embedded standards, control protocols, and toolchain syntax rather than public internet chatter:
+        </p>
+        <ul>
+          <li>Deep knowledge of AUTOSAR Classic (RTE/BSW/MCAL)</li>
+          <li>Native understanding of A2L/ASAP2, CAN/XCP, and MDF4</li>
+          <li>Automated ASPICE SWE.1-SWE.6 artifact synthesis</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🛡️</div>
+          <h3>3. Deterministic Verification Gates</h3>
+        </div>
+        <p>
+          Zero hallucination tolerance: Every AI suggestion is strictly gated by deterministic compilers and formal verification tools:
+        </p>
+        <ul>
+          <li>Automated MISRA-C:2012 / CERT C rule checkers</li>
+          <li>SMT-based formal bounds checking (Polyspace/Astree)</li>
+          <li>Human-in-the-loop sign-off for ASIL-D safety cases</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Comparison Table -->
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th style="width: 22%;">Dimension</th>
+          <th style="width: 38%;">Generic Consumer AI (ChatGPT / Public Cloud)</th>
+          <th style="width: 40%; color: #38bdf8;">Our Automotive Motor ECU AI Platform</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Data Confidentiality</strong></td>
+          <td><span class="tag-bad">High Risk</span> Egresses to public cloud; risks model retraining</td>
+          <td><span class="tag-good">100% Sovereign</span> Air-gapped / On-Premise; zero external transmission</td>
+        </tr>
+        <tr>
+          <td><strong>Automotive Semantics</strong></td>
+          <td>Generic code; no awareness of FOC, SVPWM, or ARXML</td>
+          <td>Native understanding of dq-frame transformations, MTPA, and AUTOSAR</td>
+        </tr>
+        <tr>
+          <td><strong>Safety &amp; Compliance</strong></td>
+          <td>Unverifiable probabilistic text; unsuited for ASIL-D</td>
+          <td>Deterministic verification gates; ISO 26262 tool qualification support</td>
+        </tr>
+        <tr>
+          <td><strong>Toolchain Integration</strong></td>
+          <td>Copy-paste web browser interface; manual friction</td>
+          <td>Headless API connectors for DOORS, Simulink, CANoe, INCA, dSPACE</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="slide-footer">
+      <span>Deterministic Neuro-Symbolic Architecture for High-Integrity Systems</span>
+      <span class="confidential">EXECUTIVE BRIEFING · SLIDE 2 OF 5</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 3 ==================== -->
+  <section class="slide" data-hp-slide="1" id="slide-3">
+    <div class="slide-top">
+      <div class="kicker"><span class="dot"></span> End-to-End V-Model Transformation · ASPICE SWE.1 to SWE.6</div>
+      <h2>AI Across the Motor ECU V-Development Cycle</h2>
+      <p class="subtitle">
+        Automating time-sink manual tasks from requirements decomposition down to dyno calibration while preserving full engineering control and safety integrity.
+      </p>
+    </div>
+
+    <!-- Visual V-Cycle Flow -->
+    <div class="v-cycle-container">
+      <!-- Left Arm (Design & Architecture) -->
+      <div class="v-branch">
+        <div class="v-step">
+          <div class="v-step-title">
+            <span>SWE.1: Requirements Engineering</span>
+            <span class="v-step-badge">DOORS / Polarion</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>AI Parser:</strong> Converts OEM vehicle torque requests into formal Motor Control specs; flags conflicting or untestable boundary conditions automatically.
+          </div>
+        </div>
+
+        <div class="v-step">
+          <div class="v-step-title">
+            <span>SWE.2: System Architecture</span>
+            <span class="v-step-badge">AUTOSAR ARXML</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>ARXML Co-Pilot:</strong> Automated SWC port mapping, runnable scheduling, and data dictionary validation for inverter RTE and BSW complex drivers.
+          </div>
+        </div>
+
+        <div class="v-step">
+          <div class="v-step-title">
+            <span>SWE.3: Detailed MBD &amp; Code Gen</span>
+            <span class="v-step-badge">Simulink / TargetLink</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>Model &amp; Code Assistant:</strong> Automated FOC sub-system harness generation, fixed-point scaling optimization, and automated MISRA-C:2012 remediation.
+          </div>
+        </div>
+      </div>
+
+      <!-- Center Spine -->
+      <div class="v-center-spine">
+        <div class="v-badge-center">
+          <div style="font-size: 18px; margin-bottom: 2px;">⚡ ➔ ⚙️</div>
+          <div>CLOSED LOOP</div>
+          <div style="font-size: 8.5px; color: #94a3b8; margin-top: 3px;">Continuous Automated Traceability</div>
+        </div>
+      </div>
+
+      <!-- Right Arm (Verification, Validation & Calibration) -->
+      <div class="v-branch">
+        <div class="v-step right-branch">
+          <div class="v-step-title">
+            <span>SWE.4: Unit &amp; Static Verification</span>
+            <span class="v-step-badge">Polyspace / TPT</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>Test Vector Synthesizer:</strong> Autonomously generates boundary and equivalence test cases achieving 100% MC/DC coverage for ASIL-D motor safety monitors.
+          </div>
+        </div>
+
+        <div class="v-step right-branch">
+          <div class="v-step-title">
+            <span>SWE.5: SIL / HIL Integration</span>
+            <span class="v-step-badge">dSPACE / Vector CANoe</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>HIL Automation Engine:</strong> Generates automated CAPL/Python scripts for resolver signal loss, DC bus over-voltage, and inverter bridge shoot-through faults.
+          </div>
+        </div>
+
+        <div class="v-step right-branch">
+          <div class="v-step-title">
+            <span>SWE.6: Dyno Calibration &amp; Mapping</span>
+            <span class="v-step-badge">ETAS INCA / CANape</span>
+          </div>
+          <div class="v-step-desc">
+            <strong>Bayesian Calibration Co-Pilot:</strong> Active-learning MTPA/MTPV table generator; slashes dyno cell operating hours by 50% via intelligent sweep reduction.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottleneck vs AI Acceleration Summary Bar -->
+    <div class="cols" style="margin-top: 10px;">
+      <div class="card" style="padding: 10px 16px; border-left: 3px solid #f87171;">
+        <h4 style="font-size: 12.5px; color: #f87171; margin-bottom: 3px;">Traditional Manual Bottleneck:</h4>
+        <p style="font-size: 11.5px; color: #cbd5e1;">
+          Manual test script authoring, repetitive regression debug in gigabyte CAN trace logs, and weeks of tedious test bench sweep tuning.
+        </p>
+      </div>
+      <div class="card" style="padding: 10px 16px; border-left: 3px solid #10b981;">
+        <h4 style="font-size: 12.5px; color: #34d399; margin-bottom: 3px;">AI-Accelerated Engineering:</h4>
+        <p style="font-size: 11.5px; color: #cbd5e1;">
+          Automated test synthesis, 10-second MDF4 log root-cause analysis, and optimal dyno sampling points calculated autonomously.
+        </p>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span>ASPICE Level 3 &amp; ISO 26262 ASIL-D Process Aligned</span>
+      <span class="confidential">EXECUTIVE BRIEFING · SLIDE 3 OF 5</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 4 ==================== -->
+  <section class="slide" data-hp-slide="1" id="slide-4">
+    <div class="slide-top">
+      <div class="kicker"><span class="dot"></span> Enterprise Security Architecture · Zero Trust</div>
+      <h2>Absolute IP Protection &amp; Zero Data Leakage Guarantee</h2>
+      <p class="subtitle">
+        Your motor topologies, inverter switching algorithms, and calibration datasets represent core IP. Our platform guarantees mathematical data isolation with zero cloud exposure.
+      </p>
+    </div>
+
+    <!-- 4 Security Pillars -->
+    <div class="cols">
+      <div class="security-box">
+        <div class="security-badge">🔒 Pillar 1 · Sovereign Hosting</div>
+        <h3 style="font-size: 15.5px; color: #fff; margin-bottom: 5px;">100% Air-Gapped / On-Premise VPC</h3>
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+          Deployed completely behind your corporate firewall on customer-owned infrastructure (NVIDIA DGX, private server racks, or dedicated sovereign cloud enclaves). <strong>Zero telemetry, zero external API calls, and zero external network dependencies.</strong>
+        </p>
+      </div>
+
+      <div class="security-box">
+        <div class="security-badge">🛡️ Pillar 2 · Intellectual Property Rights</div>
+        <h3 style="font-size: 15.5px; color: #fff; margin-bottom: 5px;">Zero Data Retention &amp; No Retraining</h3>
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+          Your proprietary motor control models, Simulink diagrams, C source code, and calibration A2L files are never used to train base foundation models. Ephemeral session memory is securely wiped following execution.
+        </p>
+      </div>
+
+      <div class="security-box">
+        <div class="security-badge">⚡ Pillar 3 · Compliance Standard</div>
+        <h3 style="font-size: 15.5px; color: #fff; margin-bottom: 5px;">TISAX Level 3 &amp; ISO/SAE 21434 Certified</h3>
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+          Built to conform strictly with automotive cybersecurity standards (ISO/SAE 21434) and European automotive supplier information security (TISAX AL3 - Very High Protection Need). Role-based access control (RBAC) and hardware cryptographic signing.
+        </p>
+      </div>
+
+      <div class="security-box">
+        <div class="security-badge">🔍 Pillar 4 · Audit &amp; Traceability</div>
+        <h3 style="font-size: 15.5px; color: #fff; margin-bottom: 5px;">Complete Audit Trail &amp; Human Sign-off</h3>
+        <p style="font-size: 12.5px; color: #cbd5e1; line-height: 1.45;">
+          Every generated test case, code patch, or calibration adjustment includes full cryptographic provenance and timestamped justification. Meets strict ASPICE audit requirements with mandatory Senior Engineer sign-off gates.
+        </p>
+      </div>
+    </div>
+
+    <!-- Architecture Callout -->
+    <div class="card" style="margin-top: 10px; background: rgba(15, 23, 42, 0.9); border: 1px dashed #38bdf8; padding: 12px 18px;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="font-size: 22px;">🏛️</div>
+          <div>
+            <div style="font-size: 13.5px; font-weight: 700; color: #38bdf8;">Enterprise Air-Gap Deployment Mode</div>
+            <div style="font-size: 11.5px; color: #94a3b8;">Containerized microservices (Docker/Kubernetes) running locally with on-prem quantized model weights.</div>
+          </div>
+        </div>
+        <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #34d399; font-weight: 700; font-size: 11.5px; padding: 5px 12px; border-radius: 6px;">
+          ✓ ZERO DATA LEAKAGE CERTIFIED
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span>Hardware-Enforced Data Isolation for Tier-1 &amp; OEM Intellectual Property</span>
+      <span class="confidential">EXECUTIVE BRIEFING · SLIDE 4 OF 5</span>
+    </div>
+  </section>
+
+  <!-- ==================== SLIDE 5 ==================== -->
+  <section class="slide" data-hp-slide="1" id="slide-5">
+    <div class="slide-top">
+      <div class="kicker"><span class="dot"></span> Strategic Engagement &amp; Partnership · Next Steps</div>
+      <h2>Turnkey Services: Accelerate Your Motor ECU Programs</h2>
+      <p class="subtitle">
+        We deliver end-to-end enablement: from integrating secure AI engines into your toolchain to fine-tuning on your proprietary legacy codebase and executing rapid 4-week proof-of-concepts.
+      </p>
+    </div>
+
+    <!-- 4 Turnkey Service Offerings -->
+    <div class="steps">
+      <div class="step">
+        <div>
+          <div class="num">SERVICE 01</div>
+          <h3>V-Cycle Test &amp; HIL Automation Suite</h3>
+          <p>Turnkey integration with dSPACE, Vector CANoe, and TPT. Automated test authoring and 24/7 automated regression failure diagnosis.</p>
+        </div>
+        <div class="step-deliverable">▸ 60% Faster HIL Validation</div>
+      </div>
+
+      <div class="step">
+        <div>
+          <div class="num">SERVICE 02</div>
+          <h3>Dyno Calibration Co-Pilot</h3>
+          <p>Deployment of Bayesian active-learning agents to optimize test bench schedules and auto-generate MTPA, MTPV, and thermal derating tables.</p>
+        </div>
+        <div class="step-deliverable">▸ 50% Dyno Hour Reduction</div>
+      </div>
+
+      <div class="step">
+        <div>
+          <div class="num">SERVICE 03</div>
+          <h3>ASPICE &amp; Safety Compliance Accelerator</h3>
+          <p>End-to-end bidirectional traceability automation from DOORS requirements to test logs, plus automated MISRA-C static remediation.</p>
+        </div>
+        <div class="step-deliverable">▸ 100% Audit-Ready SWE.1-6</div>
+      </div>
+
+      <div class="step">
+        <div>
+          <div class="num">SERVICE 04</div>
+          <h3>Air-Gapped Sovereign Deployment</h3>
+          <p>On-premise hardware setup, fine-tuning domain models on your internal motor firmware conventions, and hands-on team enablement.</p>
+        </div>
+        <div class="step-deliverable">▸ Zero Security Compromise</div>
+      </div>
+    </div>
+
+    <!-- Adoption Roadmap -->
+    <div class="cols" style="margin-top: 10px;">
+      <div class="card" style="padding: 12px 18px;">
+        <h4 style="font-size: 12.5px; color: #38bdf8; margin-bottom: 4px;">Phase 1: 4-Week Rapid Proof of Concept (PoC)</h4>
+        <p style="font-size: 11.5px; color: #cbd5e1;">
+          Select one high-friction subsystem (e.g., FOC fault-injection test synthesis or dyno MTPA calibration). We demonstrate 50%+ time savings on your data with zero air-gap risk.
+        </p>
+      </div>
+
+      <div class="card" style="padding: 12px 18px;">
+        <h4 style="font-size: 12.5px; color: #38bdf8; margin-bottom: 4px;">Phase 2: 12-Week Production Pilot &amp; Toolchain Rollout</h4>
+        <p style="font-size: 11.5px; color: #cbd5e1;">
+          Full on-prem deployment integrated into your CI/CD, dSPACE/Vector HIL benches, and DOORS database. Comprehensive training for your motor control engineers.
+        </p>
+      </div>
+    </div>
+
+    <!-- Call to Action Banner -->
+    <div class="cta-banner">
+      <div>
+        <div class="cta-title">Ready to Cut 6+ Months from Your Next Motor ECU Program?</div>
+        <div class="cta-subtitle">Book a 45-minute confidential technical deep dive and see our on-premise motor control AI demo.</div>
+      </div>
+      <button class="cta-btn" onclick="scheduleBriefing()">
+        Schedule Technical Briefing
+      </button>
+    </div>
+
+    <div class="slide-footer">
+      <span>Automotive Systems Engineering · Ready for Immediate Deployment</span>
+      <span class="confidential">EXECUTIVE BRIEFING · SLIDE 5 OF 5</span>
+    </div>
+  </section>
+
+</main>
+
+<!-- Interactive Slide Controls Script -->
+<script>
+  let currentSlide = 0;
+  let isScrollMode = false;
+  const slides = document.querySelectorAll('.slide');
+  const pills = document.querySelectorAll('.slide-pill');
+  const indicator = document.getElementById('slideIndicator');
+  const viewModeBtn = document.getElementById('viewModeBtn');
+  const totalSlides = slides.length;
+
+  function updateSlide(index) {
+    if (index < 0 || index >= totalSlides) return;
+    currentSlide = index;
+
+    if (!isScrollMode) {
+      slides.forEach((s, idx) => {
+        if (idx === currentSlide) {
+          s.classList.add('active-slide');
+        } else {
+          s.classList.remove('active-slide');
+        }
+      });
+    } else {
+      slides[currentSlide].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Update pill states
+    pills.forEach((pill, i) => {
+      if (i === currentSlide) {
+        pill.classList.add('active');
+      } else {
+        pill.classList.remove('active');
+      }
+    });
+
+    // Update indicator
+    if (indicator) {
+      indicator.textContent = `Slide ${currentSlide + 1} of ${totalSlides}`;
+    }
+  }
+
+  function nextSlide() {
+    if (currentSlide < totalSlides - 1) {
+      updateSlide(currentSlide + 1);
+    }
+  }
+
+  function prevSlide() {
+    if (currentSlide > 0) {
+      updateSlide(currentSlide - 1);
+    }
+  }
+
+  function goToSlide(index) {
+    updateSlide(index);
+  }
+
+  function toggleViewMode() {
+    isScrollMode = !isScrollMode;
+    if (isScrollMode) {
+      document.body.classList.remove('mode-presentation');
+      document.body.classList.add('mode-scroll');
+      if (viewModeBtn) viewModeBtn.textContent = '📽️ Slide View';
+      slides[currentSlide].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      document.body.classList.remove('mode-scroll');
+      document.body.classList.add('mode-presentation');
+      if (viewModeBtn) viewModeBtn.textContent = '📄 Scroll View';
+      updateSlide(currentSlide);
+    }
+  }
+
+  function downloadPptx() {
+    const link = document.createElement('a');
+    link.href = 'ai_automotive_motor_ecu_v_cycle.pptx';
+    link.download = 'ai_automotive_motor_ecu_v_cycle.pptx';
+    link.click();
+  }
+
+  function scheduleBriefing() {
+    alert('Technical Scoping Request Received.\n\nA senior Powertrain & ECU Systems Architect will contact you under NDA to configure your air-gapped evaluation environment.');
+  }
+
+  // Keyboard Navigation
+  window.addEventListener('keydown', (e) => {
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+      e.preventDefault();
+      nextSlide();
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      e.preventDefault();
+      prevSlide();
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      goToSlide(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      goToSlide(totalSlides - 1);
+    }
+  });
+
+  // Scroll detection in scroll mode
+  window.addEventListener('scroll', () => {
+    if (!isScrollMode) return;
+    let closestIndex = 0;
+    let closestDistance = Infinity;
+    slides.forEach((slide, index) => {
+      const rect = slide.getBoundingClientRect();
+      const distance = Math.abs(rect.top - 80);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+    if (closestIndex !== currentSlide) {
+      currentSlide = closestIndex;
+      pills.forEach((pill, i) => {
+        if (i === currentSlide) {
+          pill.classList.add('active');
+        } else {
+          pill.classList.remove('active');
+        }
+      });
+      if (indicator) {
+        indicator.textContent = `Slide ${currentSlide + 1} of ${totalSlides}`;
+      }
+    }
+  });
+
+  // Initialize
+  updateSlide(0);
+</script>
+
+</body>
+</html>
