@@ -54,9 +54,11 @@ def _deck_mode(nodes: list[dict], ctx: Ctx) -> ir.Deck:
     deck = ir.Deck(source_kind="deck")
     for i, n in enumerate(nodes):
         ctx.slide_box = n["box"]
+        ctx.footer_parts = []
         blocks = classify(n, ctx)
         slide = ir.Slide(source_index=i)
         _extract_title(slide, blocks)
+        _extract_footer(slide, blocks, ctx.footer_parts)
         slide.blocks = blocks
         _infer_kind(slide, i, len(nodes))
         deck.slides.append(slide)
@@ -75,26 +77,48 @@ def _extract_title(slide: ir.Slide, blocks: list) -> None:
     # prefer the most prominent heading among the first few blocks
     early = [(i, b) for i, b in heads if i <= 2] or heads[:1]
     i, h = min(early, key=lambda ib: (ib[1].level, ib[0]))
-    slide.title = ir.runs_text(h.runs).strip()
+    slide.title = re.sub(r"\s+", " ", ir.runs_text(h.runs)).strip()
     blocks.pop(i)
-    # kicker before title (short caption) or subtitle right after
+    # subtitle right after title
     if i < len(blocks):
         nxt = blocks[i]
-        if isinstance(nxt, ir.Paragraph) and len(ir.runs_text(nxt.runs)) < 180 and nxt.column is None \
-                and (nxt.role in ("lead", "caption") or _close_below(h, nxt)):
-            slide.subtitle = ir.runs_text(nxt.runs).strip()
-            blocks.pop(i)
-    if i > 0 and not slide.subtitle:
+        if isinstance(nxt, ir.Paragraph) and nxt.column is None:
+            nxt_text = re.sub(r"\s+", " ", ir.runs_text(nxt.runs)).strip()
+            if len(nxt_text) < 350 and (nxt.role in ("lead", "caption") or _close_below(h, nxt)):
+                slide.subtitle = nxt_text
+                blocks.pop(i)
+    # kicker before title (short caption / eyebrow above main heading)
+    if i > 0:
         prev = blocks[i - 1]
-        if isinstance(prev, ir.Paragraph) and prev.role == "caption" and len(ir.runs_text(prev.runs)) < 50:
-            slide.subtitle = ir.runs_text(prev.runs).strip()
+        prev_text = re.sub(r"\s+", " ", ir.runs_text(prev.runs)).strip() if hasattr(prev, "runs") else ""
+        if prev_text and len(prev_text) <= 90 and prev.column is None and (
+            isinstance(prev, ir.Paragraph) or (isinstance(prev, ir.Heading) and prev.level >= 3)
+        ):
+            slide.kicker = prev_text.lstrip("•· ").strip()
             blocks.pop(i - 1)
+
+
+def _extract_footer(slide: ir.Slide, blocks: list, footer_parts: list[str]) -> None:
+    parts = [p.strip() for p in footer_parts if p.strip()]
+    if not parts and blocks and isinstance(blocks[-1], ir.Paragraph):
+        last = blocks[-1]
+        src = last.src or {}
+        txt = ir.runs_text(last.runs).strip()
+        up = txt.upper()
+        near_bottom = bool(src) and (src.get("y", 0) + src.get("h", 0)) >= 0.85 * max(src.get("sh", 720), 1)
+        if near_bottom and len(txt) < 160 and any(k in up for k in ("SLIDE ", "CONFIDENTIAL", "PROPRIETARY")):
+            blocks.pop()
+            parts = [p.strip() for p in txt.split("\n") if p.strip()]
+    if parts:
+        slide.footer_left = parts[0]
+        if len(parts) > 1:
+            slide.footer_right = " · ".join(parts[1:])
 
 
 def _close_below(a, b) -> bool:
     if not a.src or not b.src:
         return False
-    return 0 <= b.src["y"] - (a.src["y"] + a.src["h"]) < 40 and len(ir.runs_text(b.runs)) < 140
+    return 0 <= b.src["y"] - (a.src["y"] + a.src["h"]) < 50 and len(ir.runs_text(b.runs)) < 350
 
 
 def _infer_kind(slide: ir.Slide, idx: int, total: int) -> None:

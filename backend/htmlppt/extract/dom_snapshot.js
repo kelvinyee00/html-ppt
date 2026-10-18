@@ -2,12 +2,22 @@
 // geometry, computed styles and rich text runs. Requires chart_probe.js.
 // Exposes: window.__hpPrepare(), window.__hpSnapshot() -> {viewport, title, docHeight, charts, root}
 (function () {
-  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'NAV', 'BUTTON',
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'META', 'LINK', 'NAV',
     'INPUT', 'SELECT', 'TEXTAREA', 'OPTION', 'IFRAME', 'OBJECT', 'EMBED', 'DIALOG']);
   const INLINE = new Set(['SPAN', 'B', 'STRONG', 'EM', 'I', 'A', 'CODE', 'SMALL', 'SUP', 'SUB', 'MARK', 'U',
     'S', 'ABBR', 'TIME', 'LABEL', 'BR', 'KBD', 'Q', 'CITE', 'DFN', 'VAR', 'SAMP', 'FONT', 'BIG', 'DEL', 'INS']);
   const hex = (c) => window.__hpHex(c);
   let nextId = 0;
+
+  function shouldSkip(el) {
+    if (!el || !el.tagName) return false;
+    if (SKIP.has(el.tagName)) return true;
+    if (el.tagName === 'BUTTON') {
+      if (!el.closest || !el.closest('[data-hp-slide], .slide, [data-slide], .swiper-slide')) return true;
+      if (el.closest('header.deck-header, nav, [role="navigation"]')) return true;
+    }
+    return false;
+  }
 
   function visible(el, s) {
     if (s.display === 'none' || s.visibility === 'hidden' || s.visibility === 'collapse') return false;
@@ -74,7 +84,7 @@
         const s = getComputedStyle(n.parentElement);
         runs.push(Object.assign({ t }, runStyle(s, n.parentElement)));
       } else if (n.nodeType === 1) {
-        if (SKIP.has(n.tagName) || n.tagName === 'svg' || n.tagName === 'IMG') continue;
+        if (shouldSkip(n) || n.tagName === 'svg' || n.tagName === 'IMG') continue;
         const s = getComputedStyle(n);
         if (!visible(n, s)) continue;
         if (n.tagName === 'BR') { runs.push({ t: '\n' }); continue; }
@@ -111,13 +121,13 @@
     for (const n of el.childNodes) {
       if (n.nodeType === 3) { if (n.textContent.trim()) hasText = true; continue; }
       if (n.nodeType !== 1) continue;
-      if (SKIP.has(n.tagName)) continue;
+      if (shouldSkip(n)) continue;
       if (n.tagName === 'svg' || n.tagName === 'IMG' || n.tagName === 'CANVAS') return false;
       const s = getComputedStyle(n);
       if (!visible(n, s)) continue;
       if (!INLINE.has(n.tagName) && !s.display.startsWith('inline')) return false;
-      if (s.display === 'inline-block' || s.display === 'inline-flex') {
-        // badge-like inline boxes with their own background break the "plain text" assumption
+      if (s.display !== 'inline') {
+        // badge-like inline/flex boxes with their own background break the "plain text" assumption
         if (colorOrNull(s.backgroundColor) && n.textContent.trim()) return false;
       }
       if (n.querySelector('svg,img,canvas,ul,ol,table,div,p')) return false;
@@ -207,7 +217,7 @@
     return n;
   }
   function walk(el) {
-    if (SKIP.has(el.tagName)) return null;
+    if (shouldSkip(el)) return null;
     const s = getComputedStyle(el);
     if (!visible(el, s)) return null;
     const b = rect(el);
