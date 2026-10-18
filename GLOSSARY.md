@@ -27,3 +27,29 @@ _Avoid_: Box group, panel list
 **KPIGroup**:
 A row or grid of prominent numeric metrics with associated descriptive labels and optional delta/sentiment indicators.
 _Avoid_: Stat tiles, number boxes
+
+**Kicker**:
+A compact, uppercase category or context label placed immediately above a slide or card title to establish topical hierarchy.
+_Avoid_: Eyebrow, pre-title, super-title
+
+**Slide Header**:
+The top structural zone of a slide comprising an optional `Kicker`, the primary slide title, an optional subtitle, and a decorative accent treatment, sized dynamically to its text content.
+_Avoid_: Top bar, title block, page header
+
+**Compound Slide**:
+A slide containing multiple distinct content zones stacked vertically (such as a `KPIGroup` above a `CardGrid`, or a `CardGrid` above a `Table` or banner) budgeted to share a single slide canvas without overflowing.
+_Avoid_: Mixed slide, multi-widget page
+
+**Layout Scorecard**:
+The automated quality evaluation of a rendered `DeckModel` against its source HTML, measuring content retention, text-fit compliance (zero overflow), bounding-box non-collision, and typographic proportion.
+_Avoid_: Linter output, test score
+
+**Semantic Tone**:
+The communicative intent of an inline badge, metric delta, card accent, or callout (`positive`, `negative`, `warning`, `primary`, `info`) preserved from the source HTML and mapped to the active `BrandProfile` color roles across any theme.
+_Avoid_: Hardcoded hex color, raw CSS color
+
+**Callout**:
+A visually distinct boxed banner, step card, or highlight block containing a title, badge, or concise body text with a `Semantic Tone` border or surface treatment.
+_Avoid_: Generic div, alert box
+
+
