@@ -79,7 +79,7 @@ class Callout(_Block):
     runs: list[Run]
     title: str = ""
     badge: str = ""                 # step badge or status pill (e.g. "DOORS / Polarion", "✓ CERTIFIED")
-    tone: Literal["info", "positive", "warning", "negative", "primary"] = "info"
+    tone: SemanticTone = "info"
 
 
 class Cell(BaseModel):
@@ -89,7 +89,7 @@ class Cell(BaseModel):
     header: bool = False
     align: Literal["left", "center", "right"] = "left"
     bold: bool = False
-    tone: Literal["none", "positive", "negative", "warning", "primary"] = "none"
+    tone: SemanticTone = "none"
 
 
 class Table(_Block):

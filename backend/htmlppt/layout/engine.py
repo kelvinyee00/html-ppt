@@ -15,7 +15,12 @@ from htmlppt.layout import model as lm
 from htmlppt.layout.archetypes import select_archetype
 from htmlppt.layout.grid import Rect, SlideGeometry
 from htmlppt.layout.overflow import handle_overflow
-from htmlppt.layout.textfit import estimate_text_height_emu, fit_font_size, scale_paras_to_fit
+from htmlppt.layout.textfit import (
+    estimate_paras_height_emu,
+    estimate_text_height_emu,
+    fit_font_size,
+    scale_paras_to_fit,
+)
 
 
 def tone_color(tone: str | None, brand: BrandProfile, default: str | None = None) -> str:
@@ -39,21 +44,7 @@ def tone_color(tone: str | None, brand: BrandProfile, default: str | None = None
 def _estimate_paras_height_emu(paras: Sequence[lm.Para], width_emu: int, inset_emu: int = 0) -> int:
     """Calculate total wrapped height in EMU for a list of paragraphs."""
     avail_w = max(int(0.4 * EMU_PER_INCH), width_emu - 2 * inset_emu)
-    total_h = 2 * inset_emu
-    for p in paras:
-        txt = "".join(r.text for r in p.runs)
-        if not txt:
-            continue
-        max_sz = max((r.size for r in p.runs), default=12.0)
-        font = p.runs[0].font if p.runs else "Calibri"
-        bold = any(r.bold for r in p.runs)
-        indent = int(0.22 * EMU_PER_INCH) * (p.level + (1 if p.bullet else 0))
-        pw = max(int(0.4 * EMU_PER_INCH), avail_w - indent)
-        ls = max(p.line_spacing or 1.2, 1.2)
-        h = estimate_text_height_emu(txt, pw, font, max_sz, line_spacing=ls, bold=bold)
-        spacing = int((p.space_before + p.space_after) * EMU_PER_PT)
-        total_h += h + spacing
-    return total_h
+    return estimate_paras_height_emu(paras, avail_w, default_line_spacing=1.2) + 2 * inset_emu
 
 
 def _autofit_paras_to_box(
@@ -194,22 +185,7 @@ def _build_header_paras(slide: ir.Slide, brand: BrandProfile) -> list[lm.Para]:
 def layout_slide(slide: ir.Slide, brand: BrandProfile, slide_num: int) -> lm.SlideModel:
     archetype = select_archetype(slide)
     has_title = bool(slide.title) and archetype not in ("title", "section", "closing")
-    try:
-        geom = SlideGeometry.from_brand(brand, has_title=has_title, slide=slide)
-    except TypeError:
-        geom = SlideGeometry.from_brand(brand, has_title=has_title)
-
-    # Dynamically size title_rect and content_rect when kicker/title/subtitle wrap to multiple lines
-    if has_title:
-        header_paras = _build_header_paras(slide, brand)
-        needed_h = _estimate_paras_height_emu(header_paras, geom.title_rect.w) + int(4 * EMU_PER_PT)
-        max_title_h = int(geom.height * 0.22)
-        if needed_h > geom.title_rect.h:
-            new_th = min(max_title_h, needed_h)
-            geom.title_rect = Rect(x=geom.title_rect.x, y=geom.title_rect.y, w=geom.title_rect.w, h=new_th)
-            content_y = geom.title_rect.bottom + max(int(geom.gutter * 0.4), int(6 * EMU_PER_PT))
-            content_h = geom.height - content_y - geom.margin_bottom
-            geom.content_rect = Rect(x=geom.content_rect.x, y=content_y, w=geom.content_rect.w, h=content_h)
+    geom = SlideGeometry.from_brand(brand, has_title=has_title, slide=slide)
 
     slide_model = lm.SlideModel(
         id=slide.id,
@@ -1350,6 +1326,28 @@ def _build_freeform_element(
                     h=eh,
                     mime=el.mime,
                     b64=el.b64,
+                )
+            )
+        elif el.kind == "vector" and el.svg:
+            _build_vector_element(
+                ir.VectorGraphic(svg=el.svg, w=float(ew), h=float(eh)),
+                ex,
+                ey,
+                ew,
+                eh,
+                sm,
+            )
+        elif el.kind == "line":
+            sm.elements.append(
+                lm.ShapeEl(
+                    name=f"Free Line {idx}",
+                    x=ex,
+                    y=ey,
+                    w=ew,
+                    h=max(eh, int(1.5 * EMU_PER_PT)),
+                    geom="line",
+                    line=brand.roles.border,
+                    line_w=max(0.75, el.border_w or 1.0),
                 )
             )
 

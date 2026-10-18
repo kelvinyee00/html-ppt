@@ -26,7 +26,7 @@ from htmlppt.brand.presets import apply_preset, palette_brand
 from htmlppt.extract.renderer import _SCRIPT, _resolve_assets, _scroll_through, snapshot_html
 from htmlppt.layout import model as lm
 from htmlppt.layout.engine import layout_deck
-from htmlppt.layout.textfit import estimate_text_height_emu
+from htmlppt.layout.textfit import estimate_paras_height_emu, estimate_text_height_emu
 from htmlppt.render.pptx_writer import write_pptx
 
 
@@ -267,38 +267,8 @@ def _iter_elements_flat(elements: Sequence[lm.Element]) -> list[lm.Element]:
 
 def _estimate_paras_height_emu(paras: Sequence[lm.Para], avail_w_emu: int) -> int:
     """Estimate wrapped height in EMU for a sequence of Para objects."""
-    total_h = 0
     safe_w = max(int(0.2 * EMU_PER_INCH), avail_w_emu)
-    for p in paras:
-        non_empty = [r for r in p.runs if r.text and r.text.strip()]
-        if not non_empty:
-            continue
-        p_text = "".join(r.text for r in p.runs).strip()
-        if not p_text:
-            continue
-        font_family = non_empty[0].font or "Calibri"
-        total_chars = sum(len(r.text) for r in non_empty)
-        if total_chars > 0:
-            font_size_pt = sum(r.size * len(r.text) for r in non_empty) / total_chars
-            bold_chars = sum(len(r.text) for r in non_empty if r.bold)
-            bold = bold_chars > 0.5 * total_chars
-        else:
-            font_size_pt = non_empty[0].size
-            bold = non_empty[0].bold
-
-        # Use p.line_spacing if explicitly set (> 1.0), else default 1.15
-        line_spacing = p.line_spacing if (p.line_spacing and p.line_spacing != 1.0) else 1.15
-        h_emu = estimate_text_height_emu(
-            text=p_text,
-            max_width_emu=safe_w,
-            font_family=font_family,
-            font_size_pt=font_size_pt,
-            line_spacing=line_spacing,
-            bold=bold,
-        )
-        space_emu = int(((p.space_before or 0.0) + (p.space_after or 0.0)) * EMU_PER_PT)
-        total_h += h_emu + space_emu
-    return total_h
+    return estimate_paras_height_emu(paras, safe_w, default_line_spacing=1.15)
 
 
 def _is_decorative_shape(el: lm.ShapeEl) -> bool:
@@ -399,6 +369,22 @@ def _evaluate_slide_geometry_and_typography(
                 overflow_details.append(
                     f"{target_label} ['{preview_txt}...']: est {est_h_pt:.1f}pt > box {box_h_pt:.1f}pt"
                 )
+        elif isinstance(el, lm.TableEl) and el.rows and el.col_widths and el.row_heights:
+            for ri, row in enumerate(el.rows):
+                row_h = el.row_heights[min(ri, len(el.row_heights) - 1)]
+                for ci, cell in enumerate(row):
+                    if not cell.paras or cell.merged:
+                        continue
+                    col_w = el.col_widths[min(ci, len(el.col_widths) - 1)] * max(1, cell.colspan)
+                    cell_h = row_h * max(1, cell.rowspan)
+                    avail_cw = max(int(0.3 * EMU_PER_INCH), col_w - 200000)
+                    est_ch = _estimate_paras_height_emu(cell.paras, avail_cw)
+                    if est_ch > int(cell_h * 1.08):
+                        preview_txt = " ".join("".join(r.text for r in p.runs).strip() for p in cell.paras)[:48]
+                        overflow_details.append(
+                            f"{el.name or 'Table'} R{ri + 1}C{ci + 1} ['{preview_txt}...']: "
+                            f"est {est_ch / EMU_PER_PT:.1f}pt > cell {cell_h / EMU_PER_PT:.1f}pt"
+                        )
 
     # 2. Collision check
     collision_details: list[str] = []
