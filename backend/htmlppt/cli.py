@@ -69,5 +69,33 @@ def palettes():
         typer.echo(f"  • {p['id']:<10} - {p['label']} ({', '.join('#' + c for c in p['colors'][:4])}...)")
 
 
+@app.command()
+def evaluate(
+    corpus_dir: Path = typer.Option(Path("backend/tests/corpus"), "--corpus-dir", "-c", help="Directory containing corpus .html files"),
+    output_html: Path = typer.Option(Path("corpus_report.html"), "-o", "--output", help="Output visual comparison HTML report"),
+    preset: str = typer.Option("corporate", "-p", "--preset", help="Style preset (minimal, corporate, bold, data-dense, executive)"),
+    palette: str = typer.Option("ocean", "--palette", help="Built-in palette (ocean, slate, forest, burgundy, sunset, mono)"),
+    dark: bool = typer.Option(True, "--dark/--light", help="Enable dark or light theme"),
+):
+    """Evaluate all HTML decks in corpus_dir and generate a side-by-side Playwright/PPTX visual comparison report."""
+    from htmlppt.evaluate import format_scorecard_table, generate_visual_comparison_report
+
+    if not corpus_dir.exists():
+        typer.secho(f"Error: corpus directory {corpus_dir} not found.", fg=typer.colors.RED)
+        raise typer.Exit(1)
+
+    typer.echo(f"Evaluating corpus in {corpus_dir} (palette={palette}, preset={preset}, dark={dark})...")
+    scorecards = generate_visual_comparison_report(
+        corpus_dir=corpus_dir,
+        output_html=output_html,
+        palette=palette,
+        preset=preset,
+        dark=dark,
+    )
+    typer.echo("\n" + format_scorecard_table(scorecards))
+    typer.secho(f"\nVisual comparison report generated: {output_html.resolve()}", fg=typer.colors.GREEN, bold=True)
+
+
 if __name__ == "__main__":
     app()
+
