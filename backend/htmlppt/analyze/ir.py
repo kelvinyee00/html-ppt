@@ -17,6 +17,9 @@ def _id() -> str:
     return uuid.uuid4().hex[:10]
 
 
+SemanticTone = Literal["none", "info", "positive", "warning", "negative", "primary", "muted"]
+
+
 class Run(BaseModel):
     t: str
     b: bool = False
@@ -29,6 +32,8 @@ class Run(BaseModel):
     sup: bool = False
     sub: bool = False
     emphasis: bool = False          # run was visually emphasised (color/highlight) in source
+    tone: SemanticTone = "none"     # semantic tone preserved across themes
+    badge: bool = False             # inline pill/badge styling
 
 
 class ListItem(BaseModel):
@@ -40,6 +45,8 @@ class _Block(BaseModel):
     id: str = Field(default_factory=_id)
     src: dict | None = None         # source box in px relative to slide: {x,y,w,h, sw, sh}
     column: int | None = None       # column index when the source arranged content side-by-side
+    row_group: int | None = None    # contiguous horizontal row band id for scoped multi-column layout
+    total_columns: int | None = None  # number of columns in this horizontal row band (2 or 3)
 
 
 class Heading(_Block):
@@ -71,7 +78,8 @@ class Callout(_Block):
     type: Literal["callout"] = "callout"
     runs: list[Run]
     title: str = ""
-    tone: Literal["info", "positive", "warning", "negative"] = "info"
+    badge: str = ""                 # step badge or status pill (e.g. "DOORS / Polarion", "✓ CERTIFIED")
+    tone: Literal["info", "positive", "warning", "negative", "primary"] = "info"
 
 
 class Cell(BaseModel):
@@ -81,7 +89,7 @@ class Cell(BaseModel):
     header: bool = False
     align: Literal["left", "center", "right"] = "left"
     bold: bool = False
-    tone: Literal["none", "positive", "negative"] = "none"
+    tone: Literal["none", "positive", "negative", "warning", "primary"] = "none"
 
 
 class Table(_Block):
@@ -134,8 +142,11 @@ class KPIGroup(_Block):
 class Card(BaseModel):
     title: str = ""
     kicker: str = ""                 # small label above title (e.g. "Q4 2026", "Step 1")
+    badge: str = ""                  # optional badge/pill or icon label (e.g. "🔒 Pillar 1")
     body: list[Run] = Field(default_factory=list)
     bullets: list[ListItem] = Field(default_factory=list)
+    footer: str = ""                 # optional bottom deliverable/highlight line (e.g. "▸ 60% Faster HIL Validation")
+    tone: SemanticTone = "none"      # semantic accent tone (e.g. "positive", "negative", "primary")
     icon_svg: str | None = None
 
 
@@ -207,6 +218,8 @@ class Slide(BaseModel):
     title: str = ""
     subtitle: str = ""
     kicker: str = ""
+    footer_left: str = ""
+    footer_right: str = ""
     blocks: list[Block] = Field(default_factory=list)
     notes: str = ""
     layout: str | None = None         # user/LLM override of the layout archetype
