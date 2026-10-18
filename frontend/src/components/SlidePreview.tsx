@@ -141,7 +141,7 @@ const RenderPara: React.FC<{ p: Para; scale: Scale }> = ({ p, scale }) => {
         paddingLeft: p.level ? `${p.level * 2.8}cqw` : undefined,
         marginTop: p.space_before ? scale.pt(p.space_before) : undefined,
         marginBottom: p.space_after ? scale.pt(p.space_after) : undefined,
-        lineHeight: p.line_spacing || 1.25,
+        lineHeight: p.line_spacing && p.line_spacing > 1.0 ? p.line_spacing : 1.2,
         display: 'flex',
         alignItems: 'baseline',
       }}
@@ -149,9 +149,9 @@ const RenderPara: React.FC<{ p: Para; scale: Scale }> = ({ p, scale }) => {
       {p.bullet && (
         <span
           style={{
-            marginRight: '0.6cqw',
+            marginRight: '0.5cqw',
             color: p.bullet_color ? hex(p.bullet_color) : 'inherit',
-            opacity: 0.85,
+            opacity: 0.9,
             fontSize: isNumbered ? '0.9em' : '1em',
             flexShrink: 0,
           }}
@@ -160,7 +160,7 @@ const RenderPara: React.FC<{ p: Para; scale: Scale }> = ({ p, scale }) => {
         </span>
       )}
 
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, overflowWrap: 'break-word' }}>
         {p.runs.map((r, ri) => {
           const textDecs: string[] = [];
           if (r.underline) textDecs.push('underline');
