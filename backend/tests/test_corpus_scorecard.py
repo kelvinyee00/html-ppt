@@ -30,6 +30,10 @@ THEME_MATRIX = [
     ("forest", False),
     ("burgundy", True),
     ("burgundy", False),
+    ("sunset", True),
+    ("sunset", False),
+    ("mono", True),
+    ("mono", False),
 ]
 
 # Cache DOM snapshots per HTML file so Playwright only snapshots each corpus file once per test session

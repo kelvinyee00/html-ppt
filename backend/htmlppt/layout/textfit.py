@@ -171,13 +171,15 @@ def scale_paras_to_fit(
     if estimate_paras_height_emu(paras, max_width_emu, default_line_spacing) <= max_height_emu:
         return paras
 
-    # Build decreasing scale steps down to min_scale
+    # Build decreasing scale steps down to effective_min_scale so all runs can reach min_size_pt
+    max_run_sz = max((r.size for p in paras for r in p.runs), default=12.0)
+    eff_min_scale = min(min_scale, (min_size_pt / max_run_sz) if max_run_sz > 0 else min_scale)
     steps: list[float] = []
     cur = 0.94
-    while cur > min_scale + 1e-4:
+    while cur > eff_min_scale + 1e-4:
         steps.append(round(cur, 3))
         cur -= 0.04
-    steps.append(min_scale)
+    steps.append(round(eff_min_scale, 3))
 
     best_paras = paras
     for scale in steps:
