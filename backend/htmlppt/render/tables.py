@@ -9,7 +9,7 @@ from pptx.util import Emu, Pt
 
 from htmlppt.brand.model import hex_to_rgb
 from htmlppt.layout import model as lm
-from htmlppt.render.text import ALIGN_MAP
+from htmlppt.render.text import ALIGN_MAP, VALIGN_MAP
 
 
 def render_table_element(slide: Slide, el: lm.TableEl) -> None:
@@ -51,6 +51,7 @@ def render_table_element(slide: Slide, el: lm.TableEl) -> None:
             cell.margin_right = m_horiz
             cell.margin_top = m_vert
             cell.margin_bottom = m_vert
+            cell.vertical_anchor = VALIGN_MAP.get(cell_data.valign, VALIGN_MAP["middle"])
 
             tf = cell.text_frame
             tf.word_wrap = True
@@ -73,8 +74,12 @@ def render_table_element(slide: Slide, el: lm.TableEl) -> None:
                     run.font.size = Pt(r_model.size)
                     run.font.bold = r_model.bold
                     run.font.italic = r_model.italic
+                    run.font.underline = r_model.underline
                     if r_model.color:
                         run.font.color.rgb = RGBColor(*hex_to_rgb(r_model.color))
+                    if r_model.href:
+                        run.hyperlink.address = r_model.href
+
 
 
 def _apply_cell_borders(tc_pr, cell_data: lm.CellEl) -> None:

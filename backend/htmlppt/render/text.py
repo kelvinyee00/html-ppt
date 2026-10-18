@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
 from pptx.oxml import parse_xml
 from pptx.slide import Slide
 from pptx.util import Emu, Pt
@@ -18,12 +18,19 @@ ALIGN_MAP = {
     "justify": PP_ALIGN.JUSTIFY,
 }
 
+VALIGN_MAP = {
+    "top": MSO_ANCHOR.TOP,
+    "middle": MSO_ANCHOR.MIDDLE,
+    "bottom": MSO_ANCHOR.BOTTOM,
+}
+
 
 def render_text_element(slide: Slide, el: lm.TextEl) -> None:
     """Create a native PowerPoint text box and render all paragraphs and runs."""
     tb = slide.shapes.add_textbox(Emu(el.x), Emu(el.y), Emu(el.w), Emu(el.h))
     tf = tb.text_frame
     tf.word_wrap = el.wrap
+    tf.vertical_anchor = VALIGN_MAP.get(el.valign, MSO_ANCHOR.TOP)
     tf.margin_left = Emu(el.inset)
     tf.margin_top = Emu(el.inset)
     tf.margin_right = Emu(el.inset)
@@ -79,9 +86,11 @@ def _apply_bullet(p, p_model: lm.Para) -> None:
     pPr.set("marL", str(_BULLET_INDENT_EMU * (p_model.level + 1)))
     pPr.set("indent", str(-_BULLET_INDENT_EMU))
     if p_model.bullet_color:
-        pPr.append(parse_xml(f'<a:buClr {_A_NS}><a:srgbClr val="{p_model.bullet_color}"/></a:buClr>'))
+        clean_bc = p_model.bullet_color.lstrip("#")
+        pPr.append(parse_xml(f'<a:buClr {_A_NS}><a:srgbClr val="{clean_bc}"/></a:buClr>'))
     if p_model.bullet.rstrip(".").isdigit():
         pPr.append(parse_xml(f'<a:buAutoNum {_A_NS} type="arabicPeriod"/>'))
     else:
         char = p_model.bullet.replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
         pPr.append(parse_xml(f'<a:buChar {_A_NS} char="{char}"/>'))
+
