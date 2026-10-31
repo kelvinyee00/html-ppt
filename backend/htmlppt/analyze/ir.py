@@ -226,6 +226,8 @@ class Slide(BaseModel):
     continued: bool = False           # created by overflow split
     source_index: int | None = None   # index of the source slide/segment
     auto: bool = False                # generated (title/agenda/closing) rather than from HTML
+    dom_node: dict | None = Field(default=None, exclude=True)
+    charts: list[dict] = Field(default_factory=list, exclude=True)
 
 
 class DeckMeta(BaseModel):

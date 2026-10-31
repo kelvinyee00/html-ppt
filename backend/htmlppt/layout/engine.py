@@ -183,6 +183,11 @@ def _build_header_paras(slide: ir.Slide, brand: BrandProfile) -> list[lm.Para]:
 
 
 def layout_slide(slide: ir.Slide, brand: BrandProfile, slide_num: int) -> lm.SlideModel:
+    if getattr(slide, "dom_node", None) is not None and slide.layout is None and not slide.continued:
+        from htmlppt.layout.direct_mapper import layout_slide_from_dom
+
+        return layout_slide_from_dom(slide, brand, slide_num=slide_num)
+
     archetype = select_archetype(slide)
     has_title = bool(slide.title) and archetype not in ("title", "section", "closing")
     geom = SlideGeometry.from_brand(brand, has_title=has_title, slide=slide)

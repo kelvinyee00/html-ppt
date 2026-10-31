@@ -13,6 +13,9 @@ def handle_overflow(slide: ir.Slide, brand: BrandProfile) -> list[ir.Slide]:
     they can be addressed individually (reorder / delete / layout override).
     """
     parts = _split(slide, brand)
+    if len(parts) > 1:
+        for part in parts:
+            part.dom_node = None
     for part in parts[1:]:
         part.id = ir._id()
     return parts
