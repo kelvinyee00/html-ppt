@@ -162,28 +162,37 @@ def contrast_ratio(hex1: str, hex2: str) -> float:
 
 
 def ensure_contrast(fg_hex: str, bg_hex: str, min_contrast: float = 4.5) -> str:
-    """Lighten fg_hex towards white until it meets min_contrast against bg_hex."""
-    fg_clean = fg_hex.lstrip("#").upper()
-    bg_clean = bg_hex.lstrip("#").upper()
+    """Shift fg_hex towards white (on dark backgrounds) or dark slate (on light backgrounds) until it meets min_contrast."""
+    fg_clean = fg_hex.strip().lstrip("#").upper()
+    bg_clean = bg_hex.strip().lstrip("#").upper()
+    if len(fg_clean) == 3:
+        fg_clean = "".join(ch * 2 for ch in fg_clean)
+    if len(bg_clean) == 3:
+        bg_clean = "".join(ch * 2 for ch in bg_clean)
+    if len(fg_clean) != 6:
+        fg_clean = "FFFFFF"
+    if len(bg_clean) != 6:
+        bg_clean = "0F172A"
     if contrast_ratio(fg_clean, bg_clean) >= min_contrast:
         return fg_clean
 
+    target = "FFFFFF" if relative_luminance(bg_clean) < 0.45 else "111827"
     for step in range(1, 21):
         t = step / 20.0
-        candidate = _mix(fg_clean, "FFFFFF", t)
+        candidate = mix_colors(fg_clean, target, t)
         if contrast_ratio(candidate, bg_clean) >= min_contrast:
             return candidate
-    return "FFFFFF"
+    return target
 
 
 def _make_dark(b: BrandProfile) -> None:
     r: ColorRoles = b.roles
     b.design.dark = True
     r.background = b.colors.dk2 if b.colors.dk2 else "0F172A"
-    r.surface = _mix(r.background, "FFFFFF", 0.08)
+    r.surface = mix_colors(r.background, "FFFFFF", 0.08)
     r.text = "F9FAFB"
     r.muted = "9CA3AF"
-    r.border = _mix(r.background, "FFFFFF", 0.18)
+    r.border = mix_colors(r.background, "FFFFFF", 0.18)
 
     # Resolve luminous primary accent in dark mode
     palette_key = b.id.replace("palette-", "") if b.id and b.id.startswith("palette-") else None
@@ -198,8 +207,12 @@ def _make_dark(b: BrandProfile) -> None:
     r.primary = primary_candidate
 
 
-def _mix(a: str, b: str, t: float) -> str:
+def mix_colors(a: str, b: str, t: float) -> str:
+    """Linearly interpolate between two 6-digit hex colors."""
     ar, ag, ab = (int(a[i:i + 2], 16) for i in (0, 2, 4))
     br, bg, bb = (int(b[i:i + 2], 16) for i in (0, 2, 4))
     return "%02X%02X%02X" % (round(ar + (br - ar) * t), round(ag + (bg - ag) * t), round(ab + (bb - ab) * t))
 
+
+# Backward-compatible alias
+_mix = mix_colors

@@ -60,6 +60,8 @@ def _deck_mode(nodes: list[dict], ctx: Ctx) -> ir.Deck:
         _extract_title(slide, blocks)
         _extract_footer(slide, blocks, ctx.footer_parts)
         slide.blocks = blocks
+        slide.initial_title = slide.title
+        slide.initial_blocks_sig = ir.blocks_signature(slide.blocks)
         _infer_kind(slide, i, len(nodes))
         deck.slides.append(slide)
     if deck.slides and deck.slides[0].kind == "title":

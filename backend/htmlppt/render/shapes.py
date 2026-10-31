@@ -32,14 +32,23 @@ def render_shape_element(slide: Slide, el: lm.ShapeEl) -> None:
     if el.geom == "roundRect" and len(shape.adjustments) > 0:
         shape.adjustments[0] = min(max(el.radius, 0.0), 0.5)
 
-    # Fill (solid or gradient fallback)
-    fill_hex = el.fill or (el.gradient[0] if el.gradient else None) or (el.line if el.geom == "line" else None)
-    if fill_hex:
-        shape.fill.solid()
-        r, g, b = hex_to_rgb(fill_hex)
-        shape.fill.fore_color.rgb = RGBColor(r, g, b)
+    # Fill (native linear gradient or solid fill)
+    if el.gradient and len(el.gradient) >= 2:
+        shape.fill.gradient()
+        shape.fill.gradient_angle = float(el.gradient_angle or 90.0)
+        stops = shape.fill.gradient_stops
+        for idx, hex_col in enumerate(el.gradient[:2]):
+            stop = stops[idx]
+            stop.position = 0.0 if idx == 0 else 1.0
+            stop.color.rgb = RGBColor(*hex_to_rgb(hex_col))
     else:
-        shape.fill.background()
+        fill_hex = el.fill or (el.gradient[0] if el.gradient else None) or (el.line if el.geom == "line" else None)
+        if fill_hex:
+            shape.fill.solid()
+            r, g, b = hex_to_rgb(fill_hex)
+            shape.fill.fore_color.rgb = RGBColor(r, g, b)
+        else:
+            shape.fill.background()
 
     # Border line
     if el.geom != "line" and el.line and el.line_w > 0:

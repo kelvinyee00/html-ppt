@@ -226,8 +226,11 @@ class Slide(BaseModel):
     continued: bool = False           # created by overflow split
     source_index: int | None = None   # index of the source slide/segment
     auto: bool = False                # generated (title/agenda/closing) rather than from HTML
-    dom_node: dict | None = Field(default=None, exclude=True)
-    charts: list[dict] = Field(default_factory=list, exclude=True)
+    dom_node: dict | None = Field(default=None)
+    charts: list[dict] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    initial_title: str = Field(default="")
+    initial_blocks_sig: str = Field(default="")
 
 
 class DeckMeta(BaseModel):
@@ -246,3 +249,11 @@ class Deck(BaseModel):
 
 def runs_text(runs: list[Run]) -> str:
     return "".join(r.t for r in runs)
+
+
+def blocks_signature(blocks: list[Block]) -> str:
+    """Deterministic fingerprint of slide blocks to detect post-segmentation IR mutations."""
+    parts: list[str] = []
+    for b in blocks:
+        parts.append(f"{b.type}:{b.id}:{getattr(b, 'title', '')}:{len(getattr(b, 'runs', []))}")
+    return "|".join(parts)

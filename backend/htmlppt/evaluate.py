@@ -65,6 +65,7 @@ class SlideScorecard:
     oversized_font_count: int = 0
     oversized_font_details: list[str] = field(default_factory=list)
     typography_neatness_score: float = 100.0
+    dom_box_iou: float = 1.0
     overall_score: float = 100.0
 
 
@@ -89,6 +90,7 @@ class DeckScorecard:
     oversized_font_count: int = 0
     oversized_font_details: list[str] = field(default_factory=list)
     typography_neatness_score: float = 100.0
+    dom_box_iou: float = 1.0
     overall_score: float = 100.0
     slides: list[SlideScorecard] = field(default_factory=list)
 
@@ -544,8 +546,73 @@ def _evaluate_slide_geometry_and_typography(
         oversized_font_count=oversized_count,
         oversized_font_details=oversized_details,
         typography_neatness_score=round(neatness, 2),
+        dom_box_iou=1.0,
         overall_score=round(overall, 2),
     )
+
+
+def _compute_slide_dom_box_iou(
+    snode: dict,
+    sm: lm.SlideModel,
+    deck_width: int,
+    deck_height: int,
+) -> float:
+    """Compute average bounding-box IoU between source DOM visual containers/tables and SlideModel elements."""
+    sbox = snode.get("box") or {}
+    sx = float(sbox.get("x", 0.0))
+    sy = float(sbox.get("y", 0.0))
+    sw = max(float(sbox.get("w", 1280.0)), 320.0)
+    sh = max(float(sbox.get("h", 720.0)), 180.0)
+    scale_x = deck_width / sw
+    scale_y = deck_height / sh
+
+    dom_boxes: list[tuple[int, int, int, int]] = []
+    for n in _all(snode):
+        if n is snode or _is_chrome_node(n, inside_slide=True):
+            continue
+        tag = (n.get("tag") or "").lower()
+        cls = (n.get("cls") or "").lower()
+        if tag == "footer" or "slide-footer" in cls:
+            continue
+        v = n.get("v") or {}
+        b = n.get("box") or {}
+        bw, bh = float(b.get("w", 0.0)), float(b.get("h", 0.0))
+        if bw < 60.0 or bh < 32.0:
+            continue
+        if tag == "table" or v.get("bg") or v.get("grad") or v.get("border"):
+            rx = int(round((float(b.get("x", sx)) - sx) * scale_x))
+            ry = int(round((float(b.get("y", sy)) - sy) * scale_y))
+            rw = int(round(bw * scale_x))
+            rh = int(round(bh * scale_y))
+            dom_boxes.append((rx, ry, rw, rh))
+
+    if not dom_boxes:
+        return 1.0
+
+    el_boxes: list[tuple[int, int, int, int]] = []
+    for el in sm.elements:
+        if isinstance(el, (lm.ShapeEl, lm.TableEl, lm.ChartEl)):
+            if isinstance(el, lm.ShapeEl) and _DECORATIVE_SHAPE_NAME_RE.search(el.name or ""):
+                continue
+            el_boxes.append((el.x, el.y, el.w, el.h))
+
+    if not el_boxes:
+        return 0.0
+
+    ious: list[float] = []
+    for dx, dy, dw, dh in dom_boxes:
+        best_iou = 0.0
+        d_area = max(1, dw * dh)
+        for ex, ey, ew, eh in el_boxes:
+            ix = max(0, min(dx + dw, ex + ew) - max(dx, ex))
+            iy = max(0, min(dy + dh, ey + eh) - max(dy, ey))
+            inter = ix * iy
+            if inter > 0:
+                union = d_area + max(1, ew * eh) - inter
+                best_iou = max(best_iou, inter / max(1, union))
+        ious.append(best_iou)
+
+    return round(sum(ious) / len(ious), 4)
 
 
 def evaluate_deck(
@@ -622,6 +689,10 @@ def evaluate_deck(
             missing_phrases=missing,
             source_index=src_idx,
         )
+        if slide_nodes and 0 <= src_idx < len(slide_nodes):
+            sc.dom_box_iou = _compute_slide_dom_box_iou(
+                slide_nodes[src_idx], sm, deck_model.width, deck_model.height
+            )
         slide_scorecards.append(sc)
 
     # Deck-wide content retention across all source slide nodes
@@ -665,6 +736,12 @@ def evaluate_deck(
     )
     deck_overall = max(0.0, min(100.0, deck_overall))
 
+    avg_iou = (
+        round(sum(s.dom_box_iou for s in slide_scorecards) / len(slide_scorecards), 4)
+        if slide_scorecards
+        else 1.0
+    )
+
     return DeckScorecard(
         deck_name=deck_name,
         palette=palette,
@@ -683,6 +760,7 @@ def evaluate_deck(
         oversized_font_count=total_oversized,
         oversized_font_details=all_oversized_details,
         typography_neatness_score=round(deck_neatness, 2),
+        dom_box_iou=avg_iou,
         overall_score=round(deck_overall, 2),
         slides=slide_scorecards,
     )
@@ -720,7 +798,7 @@ def format_scorecard_table(scorecards: Sequence[DeckScorecard]) -> str:
     header = (
         f"{'Deck':<36} | {'Theme':<14} | {'Slides':<6} | "
         f"{'Retention':<10} | {'Overflows':<9} | {'Collisions':<10} | "
-        f"{'Neatness':<8} | {'Overall':<7}"
+        f"{'DOM IoU':<7} | {'Neatness':<8} | {'Overall':<7}"
     )
     sep = "-" * len(header)
     lines.append(sep)
@@ -729,11 +807,12 @@ def format_scorecard_table(scorecards: Sequence[DeckScorecard]) -> str:
     for sc in scorecards:
         theme_str = f"{sc.palette}/{'dark' if sc.dark else 'light'}"
         ret_str = f"{sc.content_retention_ratio * 100:5.1f}%"
+        iou_str = f"{sc.dom_box_iou * 100:5.1f}%"
         lines.append(
             f"{sc.deck_name[:36]:<36} | {theme_str:<14} | "
             f"{f'{sc.slide_count}/{sc.source_slide_count}':<6} | "
             f"{ret_str:<10} | {sc.overflow_count:<9} | {sc.collision_count:<10} | "
-            f"{sc.typography_neatness_score:6.1f}   | {sc.overall_score:6.1f}"
+            f"{iou_str:<7} | {sc.typography_neatness_score:6.1f}   | {sc.overall_score:6.1f}"
         )
     lines.append(sep)
     return "\n".join(lines)

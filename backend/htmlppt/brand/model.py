@@ -118,6 +118,7 @@ class DesignLanguage(BaseModel):
     max_bullets: int = 6
     table_style: Literal["banded", "lines", "minimal"] = "banded"
     dark: bool = False
+    layout_mode: Literal["dom", "archetype"] = "dom"
 
 
 class SourceInfo(BaseModel):

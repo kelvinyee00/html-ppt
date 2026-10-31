@@ -88,19 +88,24 @@ def _all(n: dict):
 
 
 def _color_tone(color: str | None) -> str:
-    if not color or len(color) < 6:
+    if not color:
+        return "none"
+    h = color.strip().lstrip("#").upper()
+    if len(h) == 3:
+        h = "".join(ch * 2 for ch in h)
+    if len(h) != 6:
         return "none"
     try:
-        r, g, b = int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     except ValueError:
         return "none"
-    if g > r + 30 and g >= b:
+    if g > r + 28 and g >= b - 10 and g > 110:
         return "positive"
-    if r > g + 40 and r > b + 20:
+    if r > g + 38 and r > b + 20 and r > 140:
         return "negative"
-    if r > 180 and g > 120 and b < 80 and r >= g:
+    if r > 175 and g > 100 and b < 90 and r >= g:
         return "warning"
-    if b >= 180 and b > r + 50 and b >= g:
+    if (b >= 170 and b > r + 40) or (b >= 150 and g >= 140 and r < 80):
         return "primary"
     return "none"
 
@@ -110,16 +115,16 @@ def _cls_tone(cls: str | None) -> str:
         return "none"
     low = cls.lower()
     tokens = set(re.split(r"[\s_\-]+", low))
-    if tokens & {"good", "positive", "success", "deliverable"} or any(
-        k in low for k in ("right-branch", "security-box", "security-badge", "security-banner", "airgap-banner")
-    ):
+    if tokens & {"good", "positive", "success", "up"}:
         return "positive"
     if tokens & {"bad", "negative", "danger", "error", "down"}:
         return "negative"
-    if tokens & {"warning", "confidential", "caution"}:
+    if tokens & {"warning", "caution", "alert"}:
         return "warning"
-    if tokens & {"primary", "kicker", "num"} or "v-step-badge" in low or "cta-banner" in low:
+    if tokens & {"primary", "info", "accent", "kicker", "eyebrow"}:
         return "primary"
+    if tokens & {"muted", "secondary", "subtle"}:
+        return "muted"
     return "none"
 
 
@@ -146,7 +151,17 @@ def _node_tone(n: dict, default: str = "none") -> str:
         gt = _color_tone(gcol)
         if gt != "none":
             return gt
+    if n.get("c"):
+        nt = _color_tone(n["c"])
+        if nt != "none":
+            return nt
     return default
+
+
+# Public exports for shared Semantic Tone resolution across classifier and layout
+color_tone = _color_tone
+cls_tone = _cls_tone
+node_tone = _node_tone
 
 
 def to_runs(raw: list[dict], base_color: str | None = None) -> list[ir.Run]:
@@ -298,7 +313,13 @@ def _strip_styles(runs: list[ir.Run]) -> list[ir.Run]:
 
 
 def _tone(n: dict) -> str:
-    nt = _node_tone(n, default="info")
+    nt = _node_tone(n, default="none")
+    if nt == "none":
+        for l in text_leaves(n):
+            lt = _node_tone(l, default="none")
+            if lt != "none":
+                nt = lt
+                break
     return nt if nt in ("info", "positive", "warning", "negative", "primary") else "info"
 
 
@@ -489,7 +510,7 @@ def _card_from(n: dict, ctx: Ctx) -> ir.Card | None:
         l for l in tl
         if l not in icon_leaves
         and l is not deliverable_leaf
-        and not any(k in (l.get("cls") or "").lower() for k in ("num", "kicker", "eyebrow", "security-badge"))
+        and not any(k in (l.get("cls") or "").lower() for k in ("num", "kicker", "eyebrow", "badge", "pill"))
     ]
     if not title_cands:
         title_cands = [l for l in tl if l not in icon_leaves and l is not deliverable_leaf] or tl

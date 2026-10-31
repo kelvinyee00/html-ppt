@@ -117,6 +117,10 @@ def layout_deck(deck: ir.Deck, brand: BrandProfile) -> lm.DeckModel:
 
     for idx, slide in enumerate(raw_slides):
         slide_model = layout_slide(slide, brand, slide_num=idx + 1)
+        if getattr(slide, "warnings", None):
+            for w in slide.warnings:
+                if w not in deck.warnings:
+                    deck.warnings.append(w)
         deck_model.slides.append(slide_model)
 
     return deck_model
@@ -182,8 +186,19 @@ def _build_header_paras(slide: ir.Slide, brand: BrandProfile) -> list[lm.Para]:
     return paras
 
 
+def _should_use_dom_mapper(slide: ir.Slide, brand: BrandProfile) -> bool:
+    if getattr(brand.design, "layout_mode", "dom") != "dom":
+        return False
+    if getattr(slide, "dom_node", None) is None or slide.layout is not None or slide.continued:
+        return False
+    init_sig = getattr(slide, "initial_blocks_sig", "")
+    if init_sig and ir.blocks_signature(slide.blocks) != init_sig:
+        return False
+    return True
+
+
 def layout_slide(slide: ir.Slide, brand: BrandProfile, slide_num: int) -> lm.SlideModel:
-    if getattr(slide, "dom_node", None) is not None and slide.layout is None and not slide.continued:
+    if _should_use_dom_mapper(slide, brand):
         from htmlppt.layout.direct_mapper import layout_slide_from_dom
 
         return layout_slide_from_dom(slide, brand, slide_num=slide_num)
