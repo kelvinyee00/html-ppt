@@ -52,4 +52,8 @@ _Avoid_: Hardcoded hex color, raw CSS color
 A visually distinct boxed banner, step card, or highlight block containing a title, badge, or concise body text with a `Semantic Tone` border or surface treatment.
 _Avoid_: Generic div, alert box
 
+**Direct DOM Mapper**:
+The browser-layout-first engine that translates Chromium's computed DOM geometry (`x`, `y`, `w`, `h`), borders, backgrounds, and text runs directly into native `DeckModel` elements while re-theming surfaces and `Semantic Tone` colors to the active `BrandProfile`.
+_Avoid_: Heuristic re-layout, CSS parser
+
 

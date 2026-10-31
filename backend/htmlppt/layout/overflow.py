@@ -6,6 +6,26 @@ from htmlppt.analyze import ir
 from htmlppt.brand.model import BrandProfile
 
 
+def _dom_slide_fits_canvas(dom_node: dict) -> bool:
+    """Return True if the captured DOM slide fits within a standard 16:9 canvas without vertical overflow."""
+    sbox = dom_node.get("box") or {}
+    sw = max(float(sbox.get("w", 1280.0)), 320.0)
+    sh = max(float(sbox.get("h", 720.0)), 180.0)
+    sy = float(sbox.get("y", 0.0))
+    expected_h = sw * (9.0 / 16.0)
+    # If the slide container itself was stretched > 12% taller than 16:9
+    if sh > max(expected_h * 1.12, 810.0):
+        return False
+
+    max_bottom = sy + sh
+    for child in dom_node.get("kids") or []:
+        cb = child.get("box") or {}
+        cy2 = float(cb.get("y", sy)) + float(cb.get("h", 0.0))
+        if cy2 > max_bottom + 24.0:
+            return False
+    return True
+
+
 def handle_overflow(slide: ir.Slide, brand: BrandProfile) -> list[ir.Slide]:
     """Check if slide content exceeds capacity; split into continuation slides if needed.
 
@@ -13,6 +33,9 @@ def handle_overflow(slide: ir.Slide, brand: BrandProfile) -> list[ir.Slide]:
     they can be addressed individually (reorder / delete / layout override).
     """
     parts = _split(slide, brand)
+    if len(parts) > 1:
+        for part in parts:
+            part.dom_node = None
     for part in parts[1:]:
         part.id = ir._id()
     return parts
@@ -99,6 +122,18 @@ def _estimate_zone_height_in(zone: list[ir.Block]) -> float:
 
 
 def _split(slide: ir.Slide, brand: BrandProfile) -> list[ir.Slide]:
+    # In Direct DOM Mapper mode, if the slide has a captured DOM subtree that fits its 16:9 canvas,
+    # keep it intact so browser Flexbox/Grid layout is preserved rather than splitting via IR estimates.
+    if (
+        getattr(brand.design, "layout_mode", "dom") == "dom"
+        and slide.dom_node is not None
+        and slide.layout is None
+    ):
+        if _dom_slide_fits_canvas(slide.dom_node):
+            return [slide]
+        # DOM slide genuinely overflows 16:9 canvas: clear dom_node and fall through to zone splitting
+        slide.dom_node = None
+
     max_bullets = brand.design.max_bullets or 6
 
     # 1. Check if single bullet list exceeds max_bullets
@@ -184,4 +219,3 @@ def _split(slide: ir.Slide, brand: BrandProfile) -> list[ir.Slide]:
         slides_out.append(new_slide)
 
     return slides_out
-

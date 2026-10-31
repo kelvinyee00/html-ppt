@@ -38,14 +38,17 @@
     const m = c && c.match(/rgba\([^)]*,\s*([\d.]+)\)$/);
     return m ? parseFloat(m[1]) : 1;
   }
-  function visual(s) {
+  function visual(s, el) {
     const v = {};
     const bg = colorOrNull(s.backgroundColor);
     if (bg) { v.bg = bg; const a = alpha(s.backgroundColor); if (a < 1) v.bgA = a; }
     if (s.backgroundImage && s.backgroundImage !== 'none') {
       if (s.backgroundImage.includes('gradient')) {
-        const cols = (s.backgroundImage.match(/(rgba?\([^)]*\)|#[0-9a-fA-F]{3,8})/g) || []).map(hex).filter(Boolean);
+        const rawStops = s.backgroundImage.match(/(rgba?\([^)]*\)|#[0-9a-fA-F]{3,8})/g) || [];
+        const cols = rawStops.map(hex).filter(Boolean);
         if (cols.length) v.grad = cols;
+        const maxA = rawStops.reduce((mx, st) => Math.max(mx, alpha(st)), 0);
+        if (maxA > 0 && maxA < 1) v.gradA = maxA;
         const ang = s.backgroundImage.match(/(-?[\d.]+)deg/); if (ang) v.gradAngle = parseFloat(ang[1]);
       } else {
         const u = s.backgroundImage.match(/url\(["']?(.*?)["']?\)/); if (u) v.bgUrl = u[1];
@@ -54,11 +57,30 @@
     const sides = ['Top', 'Right', 'Bottom', 'Left'].map(k => ({
       w: parseFloat(s['border' + k + 'Width']) || 0, c: colorOrNull(s['border' + k + 'Color']), st: s['border' + k + 'Style'] }));
     const live = sides.map(b => b.w > 0 && b.c && b.st !== 'none' && b.st !== 'hidden');
-    if (live.every(Boolean) && sides.every(b => b.w === sides[0].w)) v.border = { w: sides[0].w, c: sides[0].c, dash: sides[0].st === 'dashed' };
-    else if (live.some(Boolean)) v.borders = sides.map((b, i) => live[i] ? { w: b.w, c: b.c } : null);
+    if (live.every(Boolean) && sides.every(b => b.w === sides[0].w && b.c === sides[0].c)) v.border = { w: sides[0].w, c: sides[0].c, dash: sides[0].st === 'dashed' };
+    else if (live.some(Boolean)) v.borders = sides.map((b, i) => live[i] ? { w: b.w, c: b.c, dash: b.st === 'dashed' } : null);
     const r = parseFloat(s.borderTopLeftRadius) || 0; if (r) v.radius = r;
     if (s.boxShadow && s.boxShadow !== 'none') v.shadow = true;
     if (parseFloat(s.opacity) < 1) v.opacity = parseFloat(s.opacity);
+    if (el) {
+      try {
+        const bs = getComputedStyle(el, '::before');
+        const bc = (bs.content || '').replace(/^["']|["']$/g, '');
+        if (bs && bc === '' && bs.position === 'absolute') {
+          const bh = parseFloat(bs.height) || 0;
+          const bt = parseFloat(bs.top) || 0;
+          if (bh >= 1 && bh <= 10 && Math.abs(bt) <= 2) {
+            const bbg = colorOrNull(bs.backgroundColor);
+            let bgrad = null;
+            if (bs.backgroundImage && bs.backgroundImage.includes('gradient')) {
+              const gcols = (bs.backgroundImage.match(/(rgba?\([^)]*\)|#[0-9a-fA-F]{3,8})/g) || []).map(hex).filter(Boolean);
+              if (gcols.length) bgrad = gcols;
+            }
+            if (bbg || bgrad) v.topBar = { h: bh, c: bbg || bgrad[0], grad: bgrad };
+          }
+        }
+      } catch (e) {}
+    }
     return v;
   }
   function runStyle(s, el) {
@@ -136,6 +158,28 @@
     return hasText;
   }
   function textBox(el) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const walkText = (node) => {
+      for (const c of node.childNodes) {
+        if (c.nodeType === 3 && c.textContent.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(c);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            minX = Math.min(minX, r.left + window.scrollX);
+            minY = Math.min(minY, r.top + window.scrollY);
+            maxX = Math.max(maxX, r.right + window.scrollX);
+            maxY = Math.max(maxY, r.bottom + window.scrollY);
+          }
+        } else if (c.nodeType === 1 && !shouldSkip(c)) {
+          walkText(c);
+        }
+      }
+    };
+    walkText(el);
+    if (minX < Infinity) {
+      return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+    }
     const range = document.createRange(); range.selectNodeContents(el);
     const r = range.getBoundingClientRect();
     return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height };
@@ -146,11 +190,13 @@
     const cls = typeof el.className === 'string' ? el.className.trim() : '';
     if (cls) n.cls = cls.slice(0, 200);
     if (el.dataset && Object.keys(el.dataset).length) n.data = Object.assign({}, el.dataset);
-    const v = visual(s); if (Object.keys(v).length) n.v = v;
+    const v = visual(s, el); if (Object.keys(v).length) n.v = v;
+    const pt = parseFloat(s.paddingTop) || 0, pr = parseFloat(s.paddingRight) || 0, pb = parseFloat(s.paddingBottom) || 0, pl = parseFloat(s.paddingLeft) || 0;
+    if (pt || pr || pb || pl) n.pad = [pt, pr, pb, pl];
     n.disp = s.display; n.pos = s.position;
     n.ta = s.textAlign;
-    if (s.display.includes('flex')) n.flex = s.flexDirection;
-    if (s.display.includes('grid')) n.gridCols = s.gridTemplateColumns.split(' ').filter(Boolean).length;
+    if (s.display.includes('flex')) { n.flex = s.flexDirection; n.ai = s.alignItems; n.jc = s.justifyContent; }
+    if (s.display.includes('grid')) { n.gridCols = s.gridTemplateColumns.split(' ').filter(Boolean).length; n.ai = s.alignItems; }
     n.fs = parseFloat(s.fontSize); n.fw = parseInt(s.fontWeight, 10); n.c = hex(s.color);
     return n;
   }
@@ -187,7 +233,18 @@
           if (c.nodeType === 1 && (c.tagName === 'UL' || c.tagName === 'OL')) continue;
           const tmp = []; collectRuns({ childNodes: [c] }, tmp, false); runs.push(...tmp);
         }
-        const item = { runs: cleanRuns(runs), level: lvl, box: rect(li) };
+        const item = { runs: cleanRuns(runs), level: lvl, box: rect(li), tbox: textBox(li), lh: parseFloat(ls.lineHeight) || (parseFloat(ls.fontSize) * 1.2) };
+        try {
+          const bs = getComputedStyle(li, '::before');
+          if (bs && bs.content && bs.content !== 'none' && bs.content !== 'normal') {
+            const bchar = bs.content.replace(/^["']|["']$/g, '').trim();
+            if (bchar && bchar.length <= 4) {
+              item.bulletChar = bchar;
+              const bcol = colorOrNull(bs.color);
+              if (bcol) item.bulletColor = bcol;
+            }
+          }
+        } catch (e) {}
         const icon = li.querySelector(':scope > svg, :scope > span > svg, :scope > i');
         if (icon) item.icon = true;
         n.items.push(item);
@@ -202,13 +259,18 @@
     n.tag = 'table'; n.rows = [];
     for (const tr of el.rows) {
       const trs = getComputedStyle(tr); if (!visible(tr, trs)) continue;
-      const row = { head: tr.parentElement.tagName === 'THEAD', cells: [] };
+      const trBox = rect(tr);
+      const row = { head: tr.parentElement.tagName === 'THEAD', h: trBox.h, y: trBox.y, cells: [] };
       for (const td of tr.cells) {
         const cs = getComputedStyle(td);
         const runs = []; collectRuns(td, runs, false);
+        const tdBox = rect(td);
         const cell = { runs: cleanRuns(runs), cs: td.colSpan || 1, rs: td.rowSpan || 1, th: td.tagName === 'TH',
-          ta: cs.textAlign, b: parseInt(cs.fontWeight, 10) >= 600 ? 1 : 0, c: hex(cs.color), w: td.getBoundingClientRect().width };
+          ta: cs.textAlign, va: cs.verticalAlign, b: parseInt(cs.fontWeight, 10) >= 600 ? 1 : 0, c: hex(cs.color),
+          w: tdBox.w, h: tdBox.h, box: tdBox };
         const bg = colorOrNull(cs.backgroundColor) || colorOrNull(trs.backgroundColor); if (bg) cell.bg = bg;
+        const bbW = parseFloat(cs.borderBottomWidth) || 0, bbC = colorOrNull(cs.borderBottomColor);
+        if (bbW > 0 && bbC && cs.borderBottomStyle !== 'none') cell.bb = { w: bbW, c: bbC };
         row.cells.push(cell);
       }
       n.rows.push(row);
@@ -250,6 +312,17 @@
       if (!n.runs.length) return Object.keys(n.v || {}).length ? n : null;
       n.tbox = textBox(el);
       n.lh = parseFloat(s.lineHeight) || n.fs * 1.2;
+      for (const c of el.children) {
+        if (!c.textContent.trim()) {
+          const cs = getComputedStyle(c);
+          const dc = colorOrNull(cs.backgroundColor);
+          const dr = rect(c);
+          if (dc && dr.w >= 3 && dr.w <= 20 && dr.h >= 3 && dr.h <= 20) {
+            n.dot = { box: dr, c: dc, radius: parseFloat(cs.borderTopLeftRadius) || 0 };
+            break;
+          }
+        }
+      }
       return n;
     }
     n.kids = [];
@@ -278,12 +351,23 @@
     slides = slides.filter(e => !slides.some(o => o !== e && o.contains(e)));
     if (slides.length >= 2) {
       document.documentElement.setAttribute('data-hp-deck', '1');
-      css.textContent += '.reveal .slides > section, .slide, [data-slide], .swiper-slide{display:block!important;position:relative!important;' +
+      slides.forEach(sl => {
+        sl.setAttribute('data-hp-slide', '1');
+        if (sl.parentElement && sl.parentElement !== document.body && sl.parentElement !== document.documentElement) {
+          sl.parentElement.setAttribute('data-hp-deck-parent', '1');
+        }
+        const cs = getComputedStyle(sl);
+        if (cs.flexDirection === 'column' || (cs.justifyContent && cs.justifyContent !== 'normal' && cs.justifyContent !== 'flex-start')) {
+          sl.setAttribute('data-hp-slide-flex', '1');
+        }
+      });
+      css.textContent += '[data-hp-deck-parent]{position:static!important;transform:none!important;height:auto!important;overflow:visible!important;display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:flex-start!important;gap:32px!important}' +
+        '.reveal .slides > section, .slide, [data-slide], .swiper-slide{display:block!important;position:relative!important;flex-shrink:0!important;' +
         'transform:none!important;opacity:1!important;visibility:visible!important;top:auto!important;left:auto!important;inset:auto!important}' +
+        '[data-hp-slide-flex="1"]{display:flex!important}' +
         '.reveal,.reveal .slides,.slides,.deck,.swiper-wrapper{position:static!important;transform:none!important;height:auto!important;overflow:visible!important;display:block!important}' +
         'html,body{overflow:visible!important;height:auto!important}' +
         '.reveal .slides > section > section{display:block!important;position:relative!important;transform:none!important;opacity:1!important}';
-      slides.forEach(sl => sl.setAttribute('data-hp-slide', '1'));
     }
     document.head.appendChild(css);
     return slides.length;
